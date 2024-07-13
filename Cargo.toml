@@ -4,3 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+iex-derive = { path = "iex-derive" }
+typeid = "1.0.0"

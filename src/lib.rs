@@ -1,208 +1,276 @@
+//! Idiomatic exceptions.
+//!
+//! Speed up the happy path of your [`Result`]-based functions by seamlessly using exceptions for
+//! error propagation.
+//!
+//! # Crash course
+//!
+//! Stick [`#[iex]`](iex) on all the functions that return [`Result`] to make them return an
+//! efficiently propagatable `#[iex] Result`, apply `?` just like usual, and occasionally call
+//! [`.into_result()`](Outcome::into_result) when you need a real [`Result`]. It's that intuitive.
+//!
+//! Compared to an algebraic [`Result`], `#[iex] Result` is asymmetric: it sacrifices the
+//! performance of error handling, and in return:
+//! - Gets rid of branching in the happy path,
+//! - Reduces memory usage by never explicitly storing the error or the enum discriminant,
+//! - Enables the compiler to use registers instead of memory when wrapping small objects in [`Ok`],
+//! - Cleanly separates the happy and unhappy paths in the machine code, resulting in better
+//!   instruction cache locality.
+//!
+//! # Example
+//!
+//! ```
+//! # #![feature(iterator_try_collect)]
+//! use iex::{iex, Outcome};
+//!
+//! #[iex]
+//! fn checked_divide(a: u32, b: u32) -> Result<u32, &'static str> {
+//!     if b == 0 {
+//!         // Actually raises a custom panic
+//!         Err("Cannot divide by zero")
+//!     } else {
+//!         // Actually returns a / b directly
+//!         Ok(a / b)
+//!     }
+//! }
+//!
+//! #[iex]
+//! fn checked_divide_by_many_numbers(a: u32, bs: &[u32]) -> Result<Vec<u32>, &'static str> {
+//!     let mut results = Vec::new();
+//!     for &b in bs {
+//!         // Actually lets the panic bubble
+//!         results.push(checked_divide(a, b)?);
+//!     }
+//!     Ok(results)
+//! }
+//!
+//! #[iex]
+//! fn checked_divide_by_many_numbers_alt(a: u32, bs: &[u32]) -> Result<Vec<u32>, &'static str> {
+//!     // Actually catches and rethrows the panic
+//!     bs.iter().map(|&b| checked_divide(a, b).into_result()).try_collect()
+//! }
+//!
+//! fn main() {
+//!     // Actually catches the panic
+//!     let result = checked_divide_by_many_numbers(5, &[1, 2, 3, 0]).into_result();
+//!     assert_eq!(result, Err("Cannot divide by zero"));
+//! }
+//! ```
+//!
+//! # All you need to know
+//!
+//! Functions marked [`#[iex]`](iex) are supposed to return a [`Result<T, E>`] in their definition.
+//! The macro rewrites them to return an opaque type `#[iex] Result<T, E>` instead. Upon calling
+//! such a function, there are two things you must _immediately_ do with its output:
+//! - Either you can propagate it with `?` if it's called from another [`#[iex]`](iex) function,
+//! - Or you must cast it to a [`Result`] via [`.into_result()`](Outcome::into_result).
+//!
+//! Doing anything else to the return value, e.g. storing it in a variable and reusing later does
+//! not cause UB, but will not work the way you think. If you want to swallow the error, use
+//! `let _ = func().into_result();` instead.
+//!
+//! A [`Result`] is only slow when used across function boundaries as a return type. Using it within
+//! a function is just fine, so don't hesitate to use [`.into_result()`](Outcome::into_result) if
+//! you wish to match on the return value, extract the error, or call a combinator like
+//! [`Result::map_err`].
+
+/// Use unwinding for error propagation from a function.
+///
+/// Applying this attribute to a function that returns [`Result<T, E>`] turns it into a function
+/// that returns `#[iex] Result<T, E>`. This is an opaque type, but it implements the [`Outcome`]
+/// trait, so you can use [`.into_result()`](Outcome::into_result) to turn it into [`Result<T, E>`].
+///
+/// Additionally, `expr?` inside an `#[iex]` function is interpreted as a custom operator (as
+/// opposed to the built-in try operator) that propagates the error from a [`Result<T, E>`] or a
+/// `#[iex] Result<T, E>` and returns a `T`.
+///
+/// # Example
+///
+/// ```
+/// // The Outcome trait is required for .into_result()
+/// use iex::{iex, Outcome};
+///
+/// fn returning_regular_result<E>(err: E) -> Result<(), E> { Err(err) }
+///
+/// #[iex]
+/// fn returning_iex_result<E>(err: E) -> Result<(), E> { Err(err) }
+///
+/// #[iex]
+/// fn test() -> Result<i32, String> {
+///     // ? can be applied to a Result<_, String>
+///     returning_regular_result("Some error happened!".to_string())?;
+///
+///     // ? can be applied to a Result<_, impl Into<String>> too
+///     returning_regular_result("Some error happened!")?;
+///
+///     // The same applies to #[iex] Result
+///     returning_iex_result("Some error happened!".to_string())?;
+///     returning_iex_result("Some error happened!")?;
+///
+///     // You can also directly return a Result
+///     Ok(123)
+/// }
+///
+/// fn main() {
+///     // Using an #[iex] function from a regular function requires a cast
+///     let _result: Result<i32, String> = test().into_result();
+/// }
+/// ```
+///
+/// This attribute can only be applied to functions that return a [`Result`]:
+///
+/// ```compile_fail
+/// # use iex::iex;
+/// // the trait `Outcome` is not implemented for `Option<()>`
+/// #[iex]
+/// fn invalid_example() -> Option<()> {
+///     None
+/// }
+/// ```
+///
+/// ```compile_fail
+/// # use iex::iex;
+/// // the trait `Outcome` is not implemented for `()`
+/// #[iex]
+/// fn invalid_example() {}
+/// ```
+pub use iex_derive::iex;
+
 use std::cell::Cell;
 use std::marker::PhantomData;
-use std::mem::MaybeUninit;
 use std::panic::AssertUnwindSafe;
-
-#[derive(Clone, Copy)]
-struct ExceptionState {
-    address: *mut (),
-}
 
 struct IexPanic;
 
 thread_local! {
-    static EXCEPTION: Cell<ExceptionState> = const {
-        Cell::new(ExceptionState {
-            address: std::ptr::null_mut(),
-        })
-    };
+    static EXCEPTION: Cell<*mut ()> = const { Cell::new(std::ptr::null_mut()) };
 }
 
-struct InsideCatchExceptionMarker<E>(PhantomData<E>);
-impl<E> Clone for InsideCatchExceptionMarker<E> {
-    fn clone(&self) -> Self {
-        Self(PhantomData)
-    }
+mod sealed {
+    pub trait Sealed {}
 }
-impl<E> Copy for InsideCatchExceptionMarker<E> {}
 
-trait Outcome<Phantom>: Into<Result<Self::Output, Self::Error>> {
+/// Properties of a generalized result type.
+///
+/// This unifies [`Result`] and `#[iex] Result`.
+#[must_use]
+pub trait Outcome: sealed::Sealed {
+    /// The type of the success value.
     type Output;
+
+    /// The type of the error value.
     type Error;
-    fn get_value_or_panic(self, marker: InsideCatchExceptionMarker<Self::Error>) -> Self::Output;
+
+    #[doc(hidden)]
+    fn get_value_or_panic<F>(self, marker: imp::Marker<F>) -> Self::Output
+    where
+        Self::Error: Into<F>;
+
+    /// Cast a generic result to a [`Result`].
+    ///
+    /// The [`Result`] can then be matched on, returned from a function that doesn't use
+    /// [`#[iex]`](iex), etc.
     fn into_result(self) -> Result<Self::Output, Self::Error>;
 }
 
-impl<T, E> Outcome<()> for Result<T, E> {
+impl<T, E> sealed::Sealed for Result<T, E> {}
+impl<T, E> Outcome for Result<T, E> {
     type Output = T;
+
     type Error = E;
-    fn get_value_or_panic(self, _marker: InsideCatchExceptionMarker<E>) -> T {
+
+    fn get_value_or_panic<F>(self, _marker: imp::Marker<F>) -> T
+    where
+        E: Into<F>,
+    {
         self.unwrap_or_else(|error| {
-            let exception = EXCEPTION.get();
-            unsafe {
-                exception.address.cast::<E>().write(error);
-            }
+            EXCEPTION.set(Box::into_raw(Box::new(error.into())).cast());
             std::panic::resume_unwind(Box::new(IexPanic))
         })
     }
+
     fn into_result(self) -> Self {
         self
     }
 }
 
-struct PanickingFunctionWrapper<T, E, F: FnOnce(InsideCatchExceptionMarker<E>) -> T>(
-    F,
-    PhantomData<fn() -> E>,
-);
+struct ExceptionConverter<TyFrom: Into<TyTo>, TyTo>(PhantomData<fn(TyFrom) -> TyTo>);
 
-impl<T, E, F: FnOnce(InsideCatchExceptionMarker<E>) -> T> From<PanickingFunctionWrapper<T, E, F>>
-    for Result<T, E>
-{
-    fn from(wrapper: PanickingFunctionWrapper<T, E, F>) -> Self {
-        let mut error = MaybeUninit::<E>::uninit();
-        let old_exception = EXCEPTION.replace(ExceptionState {
-            address: error.as_mut_ptr().cast(),
-        });
-        let caught = std::panic::catch_unwind(AssertUnwindSafe(|| {
-            wrapper.0(InsideCatchExceptionMarker(PhantomData))
-        }));
-        EXCEPTION.set(old_exception);
-        caught.map_err(|payload| {
-            if payload.downcast_ref::<IexPanic>().is_some() {
-                unsafe { error.assume_init() }
-            } else {
-                std::panic::resume_unwind(payload)
+impl<TyFrom: Into<TyTo>, TyTo> Drop for ExceptionConverter<TyFrom, TyTo> {
+    fn drop(&mut self) {
+        if typeid::of::<TyFrom>() == typeid::of::<TyTo>() {
+            // SAFETY: If we enter this conditional, TyFrom and TyTo differ only in lifetimes.
+            // Lifetimes are erased in runtime, so `impl Into<TyTo> for TyFrom` has the same
+            // implementation as `impl Into<T> for T` for some `T`, and that blanket implementation
+            // is a no-op. Therefore, no conversion needs to happen.
+            return;
+        }
+
+        // Resolve TLS just once
+        EXCEPTION.with(|exception| {
+            let error_ptr: *mut TyFrom = exception.get().cast();
+            if error_ptr.is_null() {
+                return;
             }
+            let error: TyFrom = *unsafe { Box::from_raw(error_ptr) };
+            let error: TyTo = error.into();
+            exception.set(Box::into_raw(Box::new(error)).cast());
         })
     }
 }
 
-impl<Phantom, T, E, F: FnOnce(InsideCatchExceptionMarker<E>) -> T> Outcome<Phantom>
-    for PanickingFunctionWrapper<T, E, F>
-{
-    type Output = T;
-    type Error = E;
-    fn get_value_or_panic(self, marker: InsideCatchExceptionMarker<E>) -> T {
-        self.0(marker)
-    }
-    fn into_result(self) -> Result<T, E> {
-        self.into()
-    }
-}
+#[doc(hidden)]
+pub mod imp {
+    use super::*;
 
-fn do_failing_operation_result(a: u32, b: u32) -> Result<u32, String> {
-    if b == 0 {
-        Err(format!("Cannot divide {a} by zero"))
-    } else {
-        Ok(a / b)
-    }
-}
+    pub struct Marker<F>(PhantomData<F>);
 
-// #[iex]
-// fn do_failing_operation_iex(a: u32, b: u32) -> Result<u32, String> {
-//     if b == 0 {
-//         Err(format!("Cannot divide {a} by zero"))
-//     } else {
-//         Ok(a / b)
-//     }
-// }
-
-#[inline(always)]
-fn do_failing_operation_iex(
-    a: u32,
-    b: u32,
-) -> impl Outcome<(u32, u32), Output = u32, Error = String> {
-    #[inline(never)]
-    fn implementation(marker: InsideCatchExceptionMarker<String>, a: u32, b: u32) -> u32 {
-        {
-            if b == 0 {
-                Err(format!("Cannot divide {a} by zero"))
-            } else {
-                Ok(a / b)
-            }
+    impl<F> Clone for Marker<F> {
+        fn clone(&self) -> Self {
+            *self
         }
-        .get_value_or_panic(marker)
     }
 
-    PanickingFunctionWrapper(move |marker| implementation(marker, a, b), PhantomData)
-}
+    impl<F> Copy for Marker<F> {}
 
-// #[iex]
-// fn max_length_iex<'a>(a: &'a str, b: &'a str) -> Result<&'a str, String> {
-//     if a.len() > b.len() {-
-//         Ok(a)
-//     } else if a.len() < b.len() {
-//         Ok(b)
-//     } else {
-//         Err(format!("Same length!"))
-//     }
-// }
+    pub struct IexResult<T, E, Func: FnOnce(Marker<E>) -> T>(Func, PhantomData<fn() -> E>);
 
-fn max_length_iex<'a>(
-    a: &'a str,
-    b: &'a str,
-) -> impl Outcome<(&'a str, &'a str), Output = &'a str, Error = String> {
-    PanickingFunctionWrapper(
-        move |marker| {
-            {
-                if a.len() > b.len() {
-                    Ok(a)
-                } else if a.len() < b.len() {
-                    Ok(b)
-                } else {
-                    Err(format!("Same length!"))
-                }
-            }
-            .get_value_or_panic(marker)
-        },
-        PhantomData,
-    )
-}
-
-fn swap_iex<'a, T>(
-    a: &'a mut T,
-    b: &'a mut T,
-) -> impl Outcome<(&'a mut T, &'a mut T), Output = (), Error = ()> {
-    fn implementation<'a, T>(marker: InsideCatchExceptionMarker<()>, a: &'a mut T, b: &'a mut T) {
-        {
-            std::mem::swap(a, b);
-            Ok(())
+    impl<T, E, Func: FnOnce(Marker<E>) -> T> IexResult<T, E, Func> {
+        pub fn new(f: Func) -> Self {
+            Self(f, PhantomData)
         }
-        .get_value_or_panic(marker)
     }
 
-    PanickingFunctionWrapper(move |marker| implementation::<T>(marker, a, b), PhantomData)
-}
+    impl<T, E, Func: FnOnce(Marker<E>) -> T> sealed::Sealed for IexResult<T, E, Func> {}
+    impl<T, E, Func: FnOnce(Marker<E>) -> T> Outcome for IexResult<T, E, Func> {
+        type Output = T;
+        type Error = E;
 
-// #[iex]
-// fn invoke_failing_operation() -> Result<u32, String> {
-//     do_failing_operation_result(5, 0)?;
-//     do_failing_operation_iex(5, 0)?;
-//     do_failing_operation_iex(5, 123)
-// }
-
-fn invoke_failing_operation() -> impl Outcome<(), Output = u32, Error = String> {
-    fn implementation(marker: InsideCatchExceptionMarker<String>) -> u32 {
+        fn get_value_or_panic<F>(self, _marker: Marker<F>) -> T
+        where
+            E: Into<F>,
         {
-            // let a = "hello".to_string();
-            // let b = "world".to_string();
-            // let s = max_length_iex(&a, &b).get_value_or_panic(marker);
-            // println!("{s}");
-            do_failing_operation_result(5, 0).get_value_or_panic(marker);
-            do_failing_operation_iex(5, 0).get_value_or_panic(marker);
-            do_failing_operation_iex(123, 5)
+            let exception_converter = ExceptionConverter::<E, F>(PhantomData);
+            let output = self.0(Marker(PhantomData));
+            std::mem::forget(exception_converter);
+            output
         }
-        .get_value_or_panic(marker)
+
+        fn into_result(self) -> Result<T, E> {
+            std::panic::catch_unwind(AssertUnwindSafe(|| self.0(Marker(PhantomData)))).map_err(
+                |payload| {
+                    if payload.downcast_ref::<IexPanic>().is_some() {
+                        let error_ptr = EXCEPTION.replace(std::ptr::null_mut()).cast();
+                        *unsafe { Box::from_raw(error_ptr) }
+                    } else {
+                        std::panic::resume_unwind(payload)
+                    }
+                },
+            )
+        }
     }
 
-    PanickingFunctionWrapper(move |marker| implementation(marker), PhantomData)
-}
-
-fn call_from_result() -> Result<u32, String> {
-    invoke_failing_operation().into()
-}
-
-// #[test]
-pub fn main() {
-    println!("{:?}", call_from_result());
+    // A cludge for E0700: hidden type for `...` captures lifetime that does not appear in bounds
+    pub trait Captures<'a> {}
+    impl<'a, T: ?Sized> Captures<'a> for T {}
 }
