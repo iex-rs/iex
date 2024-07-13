@@ -1,5 +1,3 @@
-#![feature(never_type)]
-
 use iex::{iex, Outcome};
 
 #[inline(never)]

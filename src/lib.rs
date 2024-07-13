@@ -84,6 +84,31 @@
 /// opposed to the built-in try operator) that propagates the error from a [`Result<T, E>`] or a
 /// `#[iex] Result<T, E>` and returns a `T`.
 ///
+/// # Pitfalls
+///
+/// If a function takes an argument whose type has an elided lifetime parameter, this parameter must
+/// be specified explicitly:
+///
+/// ```
+/// use iex::iex;
+/// use std::marker::PhantomData;
+///
+/// struct A<'a>(PhantomData<&'a ()>);
+///
+/// #[iex]
+/// fn good(a: A<'_>) -> Result<(), ()> { Ok(()) }
+///
+/// // #[iex]
+/// // fn bad(a: A) -> Result<(), ()> { Ok(()) }
+/// ```
+///
+/// This is the conventional way to specify elided lifetimes on structs, so it shouldn't be a
+/// nuisance.
+///
+/// # Attributes
+///
+/// `#[iex]` is not the only argument that can be applied.
+///
 /// # Example
 ///
 /// ```
@@ -223,6 +248,8 @@ impl<TyFrom: Into<TyTo>, TyTo> Drop for ExceptionConverter<TyFrom, TyTo> {
 pub mod imp {
     use super::*;
 
+    pub use fix_hidden_lifetime_bug::fix_hidden_lifetime_bug;
+
     pub struct Marker<F>(PhantomData<F>);
 
     impl<F> Clone for Marker<F> {
@@ -269,8 +296,4 @@ pub mod imp {
             )
         }
     }
-
-    // A cludge for E0700: hidden type for `...` captures lifetime that does not appear in bounds
-    pub trait Captures<'a> {}
-    impl<'a, T: ?Sized> Captures<'a> for T {}
 }

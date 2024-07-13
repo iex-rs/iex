@@ -4,5 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+fix-hidden-lifetime-bug = "0.2.5"
 iex-derive = { path = "iex-derive" }
 typeid = "1.0.0"

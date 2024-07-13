@@ -13,16 +13,14 @@ impl VisitMut for ReplaceTry {
     fn visit_expr_mut(&mut self, node: &mut Expr) {
         if let Expr::Try(ExprTry { expr, .. }) = node {
             *node = parse_quote!(::iex::Outcome::get_value_or_panic(#expr, _unsafe_iex_marker));
-            return;
         }
         visit_expr_mut(self, node);
     }
-
-    fn visit_expr_closure_mut(&mut self, _node: &mut ExprClosure) {
-        // Don't recurse into other functions, ? is function-wide
-    }
     fn visit_item_fn_mut(&mut self, _node: &mut ItemFn) {
-        // Don't recurse into other functions, ? is function-wide
+        // Don't recurse into other functions or closures
+    }
+    fn visit_expr_closure_mut(&mut self, _node: &mut ExprClosure) {
+        // Don't recurse into other functions or closures
     }
 }
 
@@ -34,9 +32,8 @@ impl VisitMut for ReplaceSelf {
         }
         visit_expr_path_mut(self, node);
     }
-
     fn visit_item_fn_mut(&mut self, _node: &mut ItemFn) {
-        // Don't recurse into other functions, ? is function-wide
+        // Don't recurse into other functions
     }
 }
 
@@ -47,8 +44,6 @@ pub fn iex(
 ) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as ItemFn);
     let input_span = input.span();
-
-    let lifetimes = input.sig.generics.lifetimes();
 
     let output = input.sig.output.clone();
     let result_type = match output {
@@ -61,7 +56,7 @@ pub fn iex(
         -> impl ::iex::Outcome<
             Output = #output_type,
             Error = #error_type,
-        > #(+ ::iex::imp::Captures<#lifetimes>)*
+        >
     };
 
     let mut where_clause = input
@@ -146,7 +141,10 @@ pub fn iex(
     let name = input.sig.ident.clone();
 
     let wrapper_fn = ItemFn {
-        attrs: vec![parse_quote! { #[inline(always)] }],
+        attrs: vec![
+            parse_quote! { #[::iex::imp::fix_hidden_lifetime_bug] },
+            parse_quote! { #[inline(always)] },
+        ],
         vis: input.vis,
         sig: wrapper_sig,
         block: parse_quote_spanned! {
