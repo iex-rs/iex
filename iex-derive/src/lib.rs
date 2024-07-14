@@ -116,10 +116,19 @@ pub fn iex(
         },
     };
 
+    let doc = "
+    <span></span>
+
+    <style>
+        .item-decl code::before {
+            display: block;
+            content: '#[iex]';
+        }
+    </style>
+    ";
     let mut doc_attrs = input.attrs;
     doc_attrs.insert(0, parse_quote! { #[cfg(doc)] });
-    doc_attrs
-        .push(parse_quote! { #[doc = "<span></span>\n\n<style>.item-decl code::before { display: block; content: '#[iex]'; }</style>"] });
+    doc_attrs.push(parse_quote! { #[doc = #doc] });
     let doc_fn = ItemFn {
         attrs: doc_attrs,
         vis: input.vis,
