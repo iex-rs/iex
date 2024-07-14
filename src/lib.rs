@@ -393,10 +393,11 @@ pub mod imp {
 
 extern crate self as iex;
 
+/// Examples of rendered documentation for [`#[iex]`](macro@iex) functions.
 pub mod example {
     use crate::iex;
 
-    /// A simple struct containing an `#[iex]` method.
+    /// A simple struct containing an [`#[iex]`](macro@iex) method.
     pub struct HasIexMethod;
 
     impl HasIexMethod {
