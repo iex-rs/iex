@@ -201,6 +201,11 @@ pub trait Outcome: sealed::Sealed {
     where
         Self::Error: Into<F>;
 
+    fn map_err<F, Map: FnOnce(Self::Error) -> F>(
+        self,
+        map: Map,
+    ) -> impl Outcome<Output = Self::Output, Error = F>;
+
     /// Cast a generic result to a [`Result`].
     ///
     /// The [`Result`] can then be matched on, returned from a function that doesn't use
@@ -224,32 +229,43 @@ impl<T, E> Outcome for Result<T, E> {
         })
     }
 
+    fn map_err<F, Map: FnOnce(Self::Error) -> F>(
+        self,
+        map: Map,
+    ) -> impl Outcome<Output = Self::Output, Error = F> {
+        Result::map_err(self, map)
+    }
+
     fn into_result(self) -> Self {
         self
     }
 }
 
-struct ExceptionConverter<TyFrom: Into<TyTo>, TyTo>(PhantomData<fn(TyFrom) -> TyTo>);
+struct ExceptionMapper<T, U, F: FnOnce(T) -> U>(Option<F>, PhantomData<fn(T) -> U>);
 
-impl<TyFrom: Into<TyTo>, TyTo> Drop for ExceptionConverter<TyFrom, TyTo> {
+impl<T, U, F: FnOnce(T) -> U> ExceptionMapper<T, U, F> {
+    fn swallow(mut self) {
+        self.0.take();
+        std::mem::forget(self);
+    }
+}
+
+impl<T, U, F: FnOnce(T) -> U> Drop for ExceptionMapper<T, U, F> {
     fn drop(&mut self) {
-        if typeid::of::<TyFrom>() == typeid::of::<TyTo>() {
-            // SAFETY: If we enter this conditional, TyFrom and TyTo differ only in lifetimes.
-            // Lifetimes are erased in runtime, so `impl Into<TyTo> for TyFrom` has the same
-            // implementation as `impl Into<T> for T` for some `T`, and that blanket implementation
-            // is a no-op. Therefore, no conversion needs to happen.
+        let Some(f) = self.0.take() else {
             return;
-        }
+        };
 
         // Resolve TLS just once
         EXCEPTION.with(|exception| {
-            let error_ptr: *mut TyFrom = exception.get().cast();
+            let error_ptr: *mut T = exception.get().cast();
             if error_ptr.is_null() {
                 return;
             }
-            let error: TyFrom = *unsafe { Box::from_raw(error_ptr) };
-            let error: TyTo = error.into();
-            exception.set(Box::into_raw(Box::new(error)).cast());
+            let error: T = *unsafe { Box::from_raw(error_ptr) };
+            let error: U = f(error);
+            let error_ptr: *mut U = Box::into_raw(Box::new(error));
+            exception.set(error_ptr.cast());
         })
     }
 }
@@ -287,10 +303,36 @@ pub mod imp {
         where
             E: Into<F>,
         {
-            let exception_converter = ExceptionConverter::<E, F>(PhantomData);
+            let exception_mapper = ExceptionMapper(
+                if typeid::of::<E>() == typeid::of::<F>() {
+                    // SAFETY: If we enter this conditional, E and F differ only in lifetimes.
+                    // Lifetimes are erased in runtime, so `impl Into<F> for E` has the same
+                    // implementation as `impl Into<T> for T` for some `T`, and that blanket
+                    // implementation is a no-op. Therefore, no conversion needs to happen.
+                    None
+                } else {
+                    Some(|error: E| error.into())
+                },
+                PhantomData,
+            );
             let output = self.0(Marker(PhantomData));
-            std::mem::forget(exception_converter);
+            exception_mapper.swallow();
             output
+        }
+
+        fn map_err<F, Map: FnOnce(Self::Error) -> F>(
+            self,
+            map: Map,
+        ) -> impl Outcome<Output = Self::Output, Error = F> {
+            IexResult(
+                |_marker| {
+                    let exception_mapper = ExceptionMapper(Some(map), PhantomData);
+                    let value = self.get_value_or_panic::<E>(Marker(PhantomData));
+                    exception_mapper.swallow();
+                    value
+                },
+                PhantomData,
+            )
         }
 
         fn into_result(self) -> Result<T, E> {
