@@ -15,7 +15,7 @@
 //! - Reduces memory usage by never explicitly storing the error or the enum discriminant,
 //! - Enables the compiler to use registers instead of memory when wrapping small objects in [`Ok`],
 //! - Cleanly separates the happy and unhappy paths in the machine code, resulting in better
-//!   instruction cache locality.
+//!   instruction locality.
 //!
 //! # Example
 //!
