@@ -1,5 +1,5 @@
 use proc_macro2::Span;
-use quote::ToTokens;
+use quote::quote;
 use syn::{
     parse_macro_input, parse_quote, parse_quote_spanned, parse_str,
     spanned::Spanned,
@@ -45,8 +45,8 @@ pub fn iex(
     let input = parse_macro_input!(input as ItemFn);
     let input_span = input.span();
 
-    let output = input.sig.output.clone();
-    let result_type = match output {
+    let to_result_type = input.sig.output.clone();
+    let result_type = match to_result_type {
         ReturnType::Default => parse_quote! { () },
         ReturnType::Type(_, result_type) => result_type,
     };
@@ -130,22 +130,27 @@ pub fn iex(
         #constness #asyncness move |#closure_inputs| -> #result_type #closure_block
     };
 
-    closure.attrs = input.attrs;
-    let inline_attr = closure
+    closure.attrs = input
         .attrs
         .iter()
-        .position(|attr| attr.path().is_ident("inline"))
-        .map(|index| closure.attrs.remove(index));
+        .filter(|attr| !attr.path().is_ident("doc") && !attr.path().is_ident("inline"))
+        .cloned()
+        .collect();
+    let inline_attr = input
+        .attrs
+        .iter()
+        .find(|attr| attr.path().is_ident("inline"));
     closure.attrs.insert(0, parse_quote! { #[inline(always)] });
 
     let name = input.sig.ident.clone();
 
     let wrapper_fn = ItemFn {
         attrs: vec![
+            parse_quote! { #[cfg(not(doc))] },
             parse_quote! { #[::iex::imp::fix_hidden_lifetime_bug] },
             parse_quote! { #[inline(always)] },
         ],
-        vis: input.vis,
+        vis: input.vis.clone(),
         sig: wrapper_sig,
         block: parse_quote_spanned! {
             // This span is required for dead code diagnostic
@@ -165,5 +170,20 @@ pub fn iex(
         },
     };
 
-    wrapper_fn.into_token_stream().into()
+    let mut doc_attrs = input.attrs;
+    doc_attrs.insert(0, parse_quote! { #[cfg(doc)] });
+    doc_attrs
+        .push(parse_quote! { #[doc = "<span></span>\n\n<style>.item-decl code::before { display: block; content: '#[iex]'; }</style>"] });
+    let doc_fn = ItemFn {
+        attrs: doc_attrs,
+        vis: input.vis,
+        sig: input.sig.clone(),
+        block: parse_quote! {{}},
+    };
+
+    quote! {
+        #wrapper_fn
+        #doc_fn
+    }
+    .into()
 }
