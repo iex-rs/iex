@@ -1,9 +1,9 @@
 use quote::quote;
 use syn::{
-    parse_macro_input, parse_quote, parse_quote_spanned,
+    parse, parse_macro_input, parse_quote, parse_quote_spanned,
     spanned::Spanned,
     visit_mut::{visit_expr_mut, VisitMut},
-    Expr, ExprClosure, ExprTry, Generics, ItemFn, ReturnType, Signature, Type,
+    Expr, ExprClosure, ExprTry, Generics, ItemFn, ReturnType, Signature, TraitItemFn, Type,
 };
 
 struct ReplaceTry;
@@ -22,12 +22,78 @@ impl VisitMut for ReplaceTry {
     }
 }
 
-#[proc_macro_attribute]
-pub fn iex(
-    _attr: proc_macro::TokenStream,
-    input: proc_macro::TokenStream,
-) -> proc_macro::TokenStream {
-    let input = parse_macro_input!(input as ItemFn);
+fn transform_trait_item_fn(input: TraitItemFn) -> proc_macro::TokenStream {
+    // If default is Some(..), the input should have already been parsed as an ItemFn.
+    assert!(input.default.is_none());
+
+    let result_type = match input.sig.output {
+        ReturnType::Default => parse_quote! { () },
+        ReturnType::Type(_, ref result_type) => result_type.clone(),
+    };
+    let output_type: Type = parse_quote! { <#result_type as ::iex::Outcome>::Output };
+    let error_type: Type = parse_quote! { <#result_type as ::iex::Outcome>::Error };
+    let to_impl_outcome: ReturnType = parse_quote! {
+        -> impl ::iex::Outcome<
+            Output = #output_type,
+            Error = #error_type,
+        >
+    };
+
+    let mut where_clause = input
+        .sig
+        .generics
+        .where_clause
+        .clone()
+        .unwrap_or(parse_quote! { where });
+    where_clause
+        .predicates
+        .push(parse_quote_spanned! { result_type.span() => #result_type: ::iex::Outcome });
+    let wrapper_sig = Signature {
+        generics: Generics {
+            where_clause: Some(where_clause),
+            ..input.sig.generics.clone()
+        },
+        output: to_impl_outcome,
+        ..input.sig.clone()
+    };
+
+    let wrapper_fn = TraitItemFn {
+        attrs: vec![parse_quote! { #[cfg(not(doc))] }],
+        sig: wrapper_sig,
+        default: None,
+        semi_token: input.semi_token,
+    };
+
+    let name = &input.sig.ident;
+
+    let doc = format!(
+        "
+    <span></span>
+
+    <style>
+        body.fn .item-decl code::before, #tymethod\\.{name} .code-header::before {{
+            content: '#[iex] ';
+        }}
+    </style>"
+    );
+    let mut doc_attrs = input.attrs;
+    doc_attrs.insert(0, parse_quote! { #[cfg(doc)] });
+    doc_attrs.push(parse_quote! { #[doc = #doc] });
+    let doc_fn = TraitItemFn {
+        attrs: doc_attrs,
+        sig: input.sig,
+        default: None,
+        semi_token: input.semi_token,
+    };
+
+    quote! {
+        #wrapper_fn
+        #doc_fn
+    }
+    .into()
+}
+
+fn transform_item_fn(input: ItemFn) -> proc_macro::TokenStream {
     let input_span = input.span();
 
     let result_type = match input.sig.output {
@@ -116,16 +182,20 @@ pub fn iex(
         },
     };
 
-    let doc = "
+    let doc = format!(
+        "
     <span></span>
 
     <style>
-        .item-decl code::before {
+        body.fn .item-decl code::before {{
             display: block;
             content: '#[iex]';
-        }
-    </style>
-    ";
+        }}
+        #method\\.{name} .code-header::before {{
+            content: '#[iex] ';
+        }}
+    </style>"
+    );
     let mut doc_attrs = input.attrs;
     doc_attrs.insert(0, parse_quote! { #[cfg(doc)] });
     doc_attrs.push(parse_quote! { #[doc = #doc] });
@@ -141,4 +211,16 @@ pub fn iex(
         #doc_fn
     }
     .into()
+}
+
+#[proc_macro_attribute]
+pub fn iex(
+    _attr: proc_macro::TokenStream,
+    input: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    if let Ok(input) = parse(input.clone()) {
+        transform_item_fn(input)
+    } else {
+        transform_trait_item_fn(parse_macro_input!(input as TraitItemFn))
+    }
 }

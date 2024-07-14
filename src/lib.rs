@@ -120,7 +120,7 @@
 /// sufficient indicator for those who know what `#[iex]` is, but if you use `#[iex]` in the public
 /// API of a library, you probably want to write that down in prose.
 ///
-/// For a rendered example, see [`example::add`].
+/// For a rendered example, see [`example`].
 ///
 /// # Example
 ///
@@ -395,6 +395,45 @@ extern crate self as iex;
 
 pub mod example {
     use crate::iex;
+
+    /// A simple struct containing an `#[iex]` method.
+    pub struct HasIexMethod;
+
+    impl HasIexMethod {
+        /// Such method. Very wow.
+        #[iex]
+        pub fn iex_method() -> Result<(), ()> {
+            Ok(())
+        }
+    }
+
+    /// Fallible talking.
+    pub trait SayHello {
+        /// Say hello.
+        #[iex]
+        fn provided_method(self) -> Result<String, ()>
+        where
+            Self: Sized,
+        {
+            Ok("Default implementation says Hello!".to_string())
+        }
+
+        /// Do nothing.
+        #[iex]
+        fn required_method(&self) -> Result<(), ()>;
+    }
+
+    impl SayHello for String {
+        #[iex]
+        fn provided_method(self) -> Result<String, ()> {
+            Ok(self)
+        }
+
+        #[iex]
+        fn required_method(&self) -> Result<(), ()> {
+            Ok(())
+        }
+    }
 
     /// Add numbers and check for overflow.
     ///
