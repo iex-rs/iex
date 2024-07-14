@@ -325,15 +325,15 @@ pub mod imp {
 
     impl<F> Copy for Marker<F> {}
 
-    pub struct IexResult<T, E, Func: FnOnce(Marker<E>) -> T>(Func, PhantomData<fn() -> E>);
+    pub struct IexResult<T, E, Func>(Func, PhantomData<fn() -> (T, E)>);
 
-    impl<T, E, Func: FnOnce(Marker<E>) -> T> IexResult<T, E, Func> {
+    impl<T, E, Func> IexResult<T, E, Func> {
         pub fn new(f: Func) -> Self {
             Self(f, PhantomData)
         }
     }
 
-    impl<T, E, Func: FnOnce(Marker<E>) -> T> sealed::Sealed for IexResult<T, E, Func> {}
+    impl<T, E, Func> sealed::Sealed for IexResult<T, E, Func> {}
     impl<T, E, Func: FnOnce(Marker<E>) -> T> Outcome for IexResult<T, E, Func> {
         type Output = T;
         type Error = E;
