@@ -68,6 +68,9 @@
 //! a function is mostly fine, so don't hesitate to use [`.into_result()`](Outcome::into_result) if
 //! you wish to match on the return value, extract the error, or call a combinator like
 //! [`Result::or_else`].
+//!
+//! `?` automatically applies [`Into`] conversion to the error type. If you need a more complicated
+//! error conversion, apply [`.map_err(..)?`](Outcome::map_err) to the `#[iex] Result` value.
 
 /// Use unwinding for error propagation from a function.
 ///
@@ -201,6 +204,42 @@ pub trait Outcome: sealed::Sealed {
     where
         Self::Error: Into<F>;
 
+    /// Apply a function to the `Err` value, leaving `Ok` untouched.
+    ///
+    /// This is a generalized and more efficient version of [`Result::map_err`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use iex::{iex, Outcome};
+    ///
+    /// enum MyError {
+    ///     IO(std::io::Error),
+    ///     Custom(String),
+    /// }
+    ///
+    /// #[iex]
+    /// fn producing_io_error() -> Result<(), std::io::Error> {
+    ///     Ok(())
+    /// }
+    ///
+    /// #[iex]
+    /// fn producing_string<T: std::fmt::Debug>(arg: T) -> Result<(), String> {
+    ///     Err(format!("Could not handle {:?}", arg))
+    /// }
+    ///
+    /// #[iex]
+    /// fn producing_my_error() -> Result<(), MyError> {
+    ///     producing_io_error().map_err(MyError::IO)?;
+    ///     producing_string(123).map_err(MyError::Custom)?;
+    ///     Ok(())
+    /// }
+    ///
+    /// assert!(matches!(
+    ///     producing_my_error().into_result(),
+    ///     Err(MyError::Custom(s)) if s == "Could not handle 123",
+    /// ));
+    /// ```
     fn map_err<F, Map: FnOnce(Self::Error) -> F>(
         self,
         map: Map,
@@ -311,7 +350,7 @@ pub mod imp {
                     // implementation is a no-op. Therefore, no conversion needs to happen.
                     None
                 } else {
-                    Some(|error: E| error.into())
+                    Some(<E as Into<F>>::into)
                 },
                 PhantomData,
             );
