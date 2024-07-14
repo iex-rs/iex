@@ -387,6 +387,8 @@ pub mod imp {
             )
         }
     }
+
+    pub struct NoCopy;
 }
 
 extern crate self as iex;

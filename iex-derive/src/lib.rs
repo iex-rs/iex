@@ -1,11 +1,9 @@
-use proc_macro2::Span;
 use quote::quote;
 use syn::{
-    parse_macro_input, parse_quote, parse_quote_spanned, parse_str,
+    parse_macro_input, parse_quote, parse_quote_spanned,
     spanned::Spanned,
-    visit_mut::{visit_expr_mut, visit_expr_path_mut, VisitMut},
-    Expr, ExprClosure, ExprPath, ExprTry, FnArg, Generics, ItemFn, Pat, PatType, ReturnType,
-    Signature, Token, Type,
+    visit_mut::{visit_expr_mut, VisitMut},
+    Expr, ExprClosure, ExprTry, Generics, ItemFn, ReturnType, Signature, Type,
 };
 
 struct ReplaceTry;
@@ -24,19 +22,6 @@ impl VisitMut for ReplaceTry {
     }
 }
 
-struct ReplaceSelf;
-impl VisitMut for ReplaceSelf {
-    fn visit_expr_path_mut(&mut self, node: &mut ExprPath) {
-        if node.path.is_ident("self") {
-            node.path = parse_quote!(_iex_self);
-        }
-        visit_expr_path_mut(self, node);
-    }
-    fn visit_item_fn_mut(&mut self, _node: &mut ItemFn) {
-        // Don't recurse into other functions
-    }
-}
-
 #[proc_macro_attribute]
 pub fn iex(
     _attr: proc_macro::TokenStream,
@@ -45,10 +30,9 @@ pub fn iex(
     let input = parse_macro_input!(input as ItemFn);
     let input_span = input.span();
 
-    let to_result_type = input.sig.output.clone();
-    let result_type = match to_result_type {
+    let result_type = match input.sig.output {
         ReturnType::Default => parse_quote! { () },
-        ReturnType::Type(_, result_type) => result_type,
+        ReturnType::Type(_, ref result_type) => result_type.clone(),
     };
     let output_type: Type = parse_quote! { <#result_type as ::iex::Outcome>::Output };
     let error_type: Type = parse_quote! { <#result_type as ::iex::Outcome>::Error };
@@ -73,61 +57,21 @@ pub fn iex(
             where_clause: Some(where_clause),
             ..input.sig.generics.clone()
         },
-        inputs: input
-            .sig
-            .inputs
-            .iter()
-            .enumerate()
-            .map(|(i, arg)| match arg {
-                receiver @ FnArg::Receiver(_) => receiver.clone(),
-                FnArg::Typed(pat_type) => FnArg::Typed(PatType {
-                    pat: Box::new(Pat::Path(parse_str(&format!("_iex_arg_{i}")).unwrap())),
-                    ..pat_type.clone()
-                }),
-            })
-            .collect(),
-        output: to_impl_outcome.clone(),
+        output: to_impl_outcome,
         ..input.sig.clone()
     };
-    let call_site_args: Vec<_> = input
-        .sig
-        .inputs
-        .iter()
-        .enumerate()
-        .map(|(i, arg)| -> Expr {
-            match arg {
-                FnArg::Receiver(_) => parse_str("self"),
-                FnArg::Typed(_) => parse_str(&format!("_iex_arg_{i}")),
-            }
-            .unwrap()
-        })
-        .collect();
 
     let constness = input.sig.constness;
     let asyncness = input.sig.asyncness;
 
-    let mut closure_inputs = input.sig.inputs.clone();
-    if let Some(receiver) = input.sig.receiver() {
-        closure_inputs[0] = FnArg::Typed(PatType {
-            attrs: receiver.attrs.clone(),
-            pat: Box::new(Pat::Path(parse_str("_iex_self").unwrap())),
-            colon_token: Token![:](Span::call_site()),
-            ty: receiver.ty.clone(),
-        });
-    }
-    closure_inputs.insert(
-        0,
-        parse_quote! {
-            #[allow(unused_variables)] _unsafe_iex_marker: ::iex::imp::Marker<#error_type>
-        },
-    );
-
     let mut closure_block = input.block;
     ReplaceTry.visit_block_mut(&mut closure_block);
-    ReplaceSelf.visit_block_mut(&mut closure_block);
 
     let mut closure: ExprClosure = parse_quote! {
-        #constness #asyncness move |#closure_inputs| -> #result_type #closure_block
+        #constness #asyncness move |_unsafe_iex_marker| -> #result_type {
+            let _iex_no_copy = _iex_no_copy; // Force FnOnce inference
+            #closure_block
+        }
     };
 
     closure.attrs = input
@@ -156,12 +100,14 @@ pub fn iex(
             // This span is required for dead code diagnostic
             input_span =>
             {
+                let _iex_no_copy = ::iex::imp::NoCopy; // Force FnOnce inference
                 // We need { .. } to support the #[inline] attribute on the closure
-                let #name = { #closure };
+                #[allow(unused_mut)]
+                let mut #name = { #closure };
                 ::iex::imp::IexResult::new(
                     #inline_attr move |_unsafe_iex_marker| {
                         ::iex::Outcome::get_value_or_panic(
-                            #name(_unsafe_iex_marker, #(#call_site_args,)*),
+                            #name(_unsafe_iex_marker),
                             _unsafe_iex_marker,
                         )
                     },
@@ -177,7 +123,7 @@ pub fn iex(
     let doc_fn = ItemFn {
         attrs: doc_attrs,
         vis: input.vis,
-        sig: input.sig.clone(),
+        sig: input.sig,
         block: parse_quote! {{}},
     };
 
