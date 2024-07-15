@@ -71,6 +71,13 @@
 //!
 //! `?` automatically applies [`Into`] conversion to the error type. If you need a more complicated
 //! error conversion, apply [`.map_err(..)?`](Outcome::map_err) to the `#[iex] Result` value.
+//!
+//! [`#[iex]`](macro@iex) works on methods. If applied to a function in an `impl Trait for Type`
+//! block, the corresponding function in the `trait Trait` block should also be marked with
+//! [`#[iex]`](macro@iex). Such traits are not object-safe, unless the method is restricted to
+//! `where Self: Sized` (open an issue if you want me to spend time developing a workaround). A
+//! particular implementation can return an algebraic [`Result`] even if the declaration is marked
+//! with [`#[iex]`](macro@iex), but this requires `#[allow(refining_impl_trait)]`.
 
 /// Use unwinding for error propagation from a function.
 ///
@@ -79,7 +86,7 @@
 /// trait, so you can use [`.into_result()`](Outcome::into_result) to turn it into [`Result<T, E>`].
 ///
 /// Additionally, `expr?` inside an `#[iex]` function is interpreted as a custom operator (as
-/// opposed to the built-in try operator) that propagates the error from a [`Result<T, E>`] or a
+/// opposed to the built-in try operator) that propagates the error from a [`Result<T, E>`] or an
 /// `#[iex] Result<T, E>` and returns a `T`.
 ///
 /// # Pitfalls
@@ -116,7 +123,7 @@
 /// # Documentation
 ///
 /// `#[iex]` functions are documented (by rustdoc) to return an algebraic [`Result`], just like in
-/// source code, but they also have a `#[iex]` macro attached to their signature. This is a
+/// source code, but they also have an `#[iex]` macro attached to their signature. This is a
 /// sufficient indicator for those who know what `#[iex]` is, but if you use `#[iex]` in the public
 /// API of a library, you probably want to write that down in prose.
 ///

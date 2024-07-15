@@ -35,4 +35,11 @@ impl SayHello for String {
     }
 }
 
+impl SayHello for &str {
+    #[allow(refining_impl_trait)]
+    fn say_hello(self) -> Result<String, ()> {
+        Ok(self.to_string())
+    }
+}
+
 fn main() {}
