@@ -320,7 +320,7 @@ impl<T, U, F: FnOnce(T) -> U> Drop for ExceptionMapper<T, U, F> {
 pub mod imp {
     use super::*;
 
-    pub use fix_hidden_lifetime_bug::fix_hidden_lifetime_bug;
+    pub use fix_hidden_lifetime_bug;
 
     pub struct Marker<F>(PhantomData<F>);
 

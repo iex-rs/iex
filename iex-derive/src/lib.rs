@@ -157,7 +157,11 @@ fn transform_item_fn(input: ItemFn) -> proc_macro::TokenStream {
     let wrapper_fn = ItemFn {
         attrs: vec![
             parse_quote! { #[cfg(not(doc))] },
-            parse_quote! { #[::iex::imp::fix_hidden_lifetime_bug] },
+            parse_quote! {
+                #[::iex::imp::fix_hidden_lifetime_bug::fix_hidden_lifetime_bug(
+                    crate = ::iex::imp::fix_hidden_lifetime_bug
+                )]
+            },
             parse_quote! { #[inline(always)] },
         ],
         vis: input.vis.clone(),
