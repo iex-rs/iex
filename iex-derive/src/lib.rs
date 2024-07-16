@@ -3,7 +3,7 @@ use syn::{
     parse, parse_macro_input, parse_quote, parse_quote_spanned,
     spanned::Spanned,
     visit_mut::{visit_expr_mut, VisitMut},
-    Expr, ExprClosure, ExprTry, Generics, ItemFn, ReturnType, Signature, TraitItemFn, Type,
+    Expr, ExprClosure, ExprTry, ItemFn, ReturnType, Signature, TraitItemFn, Type,
 };
 
 struct ReplaceTry;
@@ -39,20 +39,19 @@ fn transform_trait_item_fn(input: TraitItemFn) -> proc_macro::TokenStream {
         >
     };
 
-    let mut where_clause = input
-        .sig
-        .generics
-        .where_clause
-        .clone()
-        .unwrap_or(parse_quote! { where });
-    where_clause
-        .predicates
-        .push(parse_quote_spanned! { result_type.span() => #result_type: ::iex::Outcome });
+    // We used to add '#result_type: ::iex::Outcome' to the 'where' condition. This is wrong for the
+    // same reason that *this* fails to typecheck:
+    //     trait Trait {
+    //         type Exact;
+    //     }
+    //     impl<T> Trait for T {
+    //         type Exact = T;
+    //     }
+    //     fn f<T: Trait>() {
+    //         let x: <T as Trait>::Exact = loop {};
+    //         let y: T = x;
+    //     }
     let wrapper_sig = Signature {
-        generics: Generics {
-            where_clause: Some(where_clause),
-            ..input.sig.generics.clone()
-        },
         output: to_impl_outcome,
         ..input.sig.clone()
     };
@@ -109,20 +108,19 @@ fn transform_item_fn(input: ItemFn) -> proc_macro::TokenStream {
         >
     };
 
-    let mut where_clause = input
-        .sig
-        .generics
-        .where_clause
-        .clone()
-        .unwrap_or(parse_quote! { where });
-    where_clause
-        .predicates
-        .push(parse_quote_spanned! { result_type.span() => #result_type: ::iex::Outcome });
+    // We used to add '#result_type: ::iex::Outcome' to the 'where' condition. This is wrong for the
+    // same reason that *this* fails to typecheck:
+    //     trait Trait {
+    //         type Exact;
+    //     }
+    //     impl<T> Trait for T {
+    //         type Exact = T;
+    //     }
+    //     fn f<T: Trait>() {
+    //         let x: <T as Trait>::Exact = loop {};
+    //         let y: T = x;
+    //     }
     let wrapper_sig = Signature {
-        generics: Generics {
-            where_clause: Some(where_clause),
-            ..input.sig.generics.clone()
-        },
         output: to_impl_outcome,
         ..input.sig.clone()
     };
