@@ -64,6 +64,9 @@
 //! not cause UB, but will not work the way you think. If you want to swallow the error, use
 //! `let _ = func().into_result();` instead.
 //!
+//! Notably, this list does not include returning from a function with an `#[iex] Result` obtained
+//! from a call of another function. You need to use `Ok(..?)`. Sorry.
+//!
 //! A [`Result`] is only slow when used across function boundaries as a return type. Using it within
 //! a function is mostly fine, so don't hesitate to use [`.into_result()`](Outcome::into_result) if
 //! you wish to match on the return value, extract the error, or call a combinator like
