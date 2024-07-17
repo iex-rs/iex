@@ -4,18 +4,18 @@ version = 3
 
 [[package]]
 name = "fix-hidden-lifetime-bug"
-version = "0.2.5"
+version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4ae9c2016a663983d4e40a9ff967d6dcac59819672f0b47f2b17574e99c33c8"
+checksum = "40976db4d694ad47c9cdf86bd978cf4cfbe1c29469d5d1fc5b730a75e3d43a9b"
 dependencies = [
  "fix-hidden-lifetime-bug-proc_macros",
 ]
 
 [[package]]
 name = "fix-hidden-lifetime-bug-proc_macros"
-version = "0.2.5"
+version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4c81935e123ab0741c4c4f0d9b8377e5fb21d3de7e062fa4b1263b1fbcba1ea"
+checksum = "75ab4fc77a21a7e7704c9ddbceaeb00ad8512b71b83738f3c0f17a0f44ee24a3"
 dependencies = [
  "proc-macro2",
  "quote",
