@@ -94,8 +94,10 @@
 ///
 /// # Pitfalls
 ///
-/// If a function takes an argument whose type has an elided lifetime parameter, this parameter must
-/// be specified explicitly:
+/// The lifetimes may be a bit difficult to get right.
+///
+/// If a function takes an argument whose *type* has an elided lifetime *parameter*, this parameter
+/// must be specified explicitly:
 ///
 /// ```
 /// use iex::iex;
@@ -112,6 +114,40 @@
 ///
 /// This is the conventional way to specify elided lifetimes on structs, so it shouldn't be a
 /// nuisance.
+///
+/// Additionally, if an associated function captures the lifetime from the `impl` block that is not
+/// mentioned in its signature, this lifetime must be specified explicitly:
+///
+/// ```
+/// use iex::iex;
+/// use std::marker::PhantomData;
+///
+/// struct Ref<'a, T>(Option<&'a T>);
+///
+/// impl<'a, T: Clone> Ref<'a, T> {
+///     // If there were more lifetimes to list, you'd use #[iex(captures = "'a", captures = "'b")]
+///     #[iex(captures = "'a")]
+///     fn get(self) -> Result<T, ()> {
+///         self.0.cloned().ok_or(())
+///     }
+/// }
+/// ```
+///
+/// Don't waste time adding the capture clause everywhere, just look out for errors like this one:
+///
+/// ```text
+/// error[E0700]: hidden type for `impl Outcome` captures lifetime that does not appear in bounds
+///   --> src/lib.rs:130:5
+///    |
+/// 10 |   impl<'a, T: Clone> Ref<'a, T> {
+///    |        -- hidden type `IexResult<..>` captures the lifetime `'a` as defined here
+/// 11 |       #[iex]
+///    |       ------ opaque type defined here
+/// 12 | /     fn get(self) -> Result<T, ()> {
+/// 13 | |         self.0.cloned().ok_or(())
+/// 14 | |     }
+///    | |_____^
+/// ```
 ///
 /// # Attributes
 ///

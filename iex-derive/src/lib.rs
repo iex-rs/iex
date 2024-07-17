@@ -1,10 +1,17 @@
+use darling::{ast::NestedMeta, FromMeta};
 use quote::quote;
 use syn::{
-    parse, parse_macro_input, parse_quote, parse_quote_spanned,
+    parse, parse_macro_input, parse_quote, parse_quote_spanned, parse_str,
     spanned::Spanned,
     visit_mut::{visit_expr_mut, VisitMut},
-    Expr, ExprClosure, ExprTry, ItemFn, ReturnType, Signature, TraitItemFn, Type,
+    Expr, ExprClosure, ExprTry, ItemFn, Lifetime, ReturnType, Signature, TraitItemFn, Type,
 };
+
+#[derive(FromMeta)]
+struct MacroArgs {
+    #[darling(multiple)]
+    captures: Vec<String>,
+}
 
 struct ReplaceTry;
 impl VisitMut for ReplaceTry {
@@ -22,7 +29,7 @@ impl VisitMut for ReplaceTry {
     }
 }
 
-fn transform_trait_item_fn(input: TraitItemFn) -> proc_macro::TokenStream {
+fn transform_trait_item_fn(captures: Vec<Lifetime>, input: TraitItemFn) -> proc_macro::TokenStream {
     // If default is Some(..), the input should have already been parsed as an ItemFn.
     assert!(input.default.is_none());
 
@@ -36,7 +43,7 @@ fn transform_trait_item_fn(input: TraitItemFn) -> proc_macro::TokenStream {
         -> impl ::iex::Outcome<
             Output = #output_type,
             Error = #error_type,
-        >
+        > #(+ ::iex::imp::fix_hidden_lifetime_bug::Captures<#captures>)*
     };
 
     // We used to add '#result_type: ::iex::Outcome' to the 'where' condition. This is wrong for the
@@ -92,7 +99,7 @@ fn transform_trait_item_fn(input: TraitItemFn) -> proc_macro::TokenStream {
     .into()
 }
 
-fn transform_item_fn(input: ItemFn) -> proc_macro::TokenStream {
+fn transform_item_fn(captures: Vec<Lifetime>, input: ItemFn) -> proc_macro::TokenStream {
     let input_span = input.span();
 
     let result_type = match input.sig.output {
@@ -105,7 +112,7 @@ fn transform_item_fn(input: ItemFn) -> proc_macro::TokenStream {
         -> impl ::iex::Outcome<
             Output = #output_type,
             Error = #error_type,
-        >
+        > #(+ ::iex::imp::fix_hidden_lifetime_bug::Captures<#captures>)*
     };
 
     // We used to add '#result_type: ::iex::Outcome' to the 'where' condition. This is wrong for the
@@ -217,12 +224,29 @@ fn transform_item_fn(input: ItemFn) -> proc_macro::TokenStream {
 
 #[proc_macro_attribute]
 pub fn iex(
-    _attr: proc_macro::TokenStream,
+    args: proc_macro::TokenStream,
     input: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
+    let args = match NestedMeta::parse_meta_list(args.into()) {
+        Ok(args) => args,
+        Err(e) => return e.into_compile_error().into(),
+    };
+    let args = match MacroArgs::from_list(&args) {
+        Ok(args) => args,
+        Err(e) => return e.write_errors().into(),
+    };
+
+    let mut captures = Vec::new();
+    for capture in args.captures {
+        match parse_str::<Lifetime>(&capture) {
+            Ok(lifetime) => captures.push(lifetime),
+            Err(e) => return e.into_compile_error().into(),
+        }
+    }
+
     if let Ok(input) = parse(input.clone()) {
-        transform_item_fn(input)
+        transform_item_fn(captures, input)
     } else {
-        transform_trait_item_fn(parse_macro_input!(input as TraitItemFn))
+        transform_trait_item_fn(captures, parse_macro_input!(input as TraitItemFn))
     }
 }
