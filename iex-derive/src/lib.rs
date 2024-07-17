@@ -63,8 +63,10 @@ fn transform_trait_item_fn(captures: Vec<Lifetime>, input: TraitItemFn) -> proc_
         ..input.sig.clone()
     };
 
+    let mut wrapper_attrs = input.attrs.clone();
+    wrapper_attrs.insert(0, parse_quote! { #[cfg(not(doc))] });
     let wrapper_fn = TraitItemFn {
-        attrs: vec![parse_quote! { #[cfg(not(doc))] }],
+        attrs: wrapper_attrs,
         sig: wrapper_sig,
         default: None,
         semi_token: input.semi_token,
