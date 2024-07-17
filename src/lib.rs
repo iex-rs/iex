@@ -149,6 +149,26 @@
 ///    | |_____^
 /// ```
 ///
+/// Finally, make sure to use the same lifetimes in `trait` and `impl`:
+///
+/// ```compile_fail
+/// use iex::iex;
+///
+/// trait Trait {
+///     #[iex]
+///     fn takes_str(s: &'static str) -> Result<(), ()>;
+/// }
+///
+/// impl Trait for () {
+///     // error[E0308]: method not compatible with trait
+///     // Use 's: &'static str' instead
+///     #[iex]
+///     fn takes_str(s: &str) -> Result<(), ()> {
+///         Ok(())
+///     }
+/// }
+/// ```
+///
 /// # Attributes
 ///
 /// Rust evaluates attribute macros from top to bottom, so if `#[iex]` is not the only attribute
