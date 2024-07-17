@@ -153,24 +153,34 @@ fn transform_item_fn(captures: Vec<Lifetime>, input: ItemFn) -> proc_macro::Toke
         .filter(|attr| !attr.path().is_ident("doc") && !attr.path().is_ident("inline"))
         .cloned()
         .collect();
-    let inline_attr = input
-        .attrs
-        .iter()
-        .find(|attr| attr.path().is_ident("inline"));
     closure.attrs.insert(0, parse_quote! { #[inline(always)] });
 
     let name = input.sig.ident.clone();
 
+    // Doc comments must stay in the wrapper even without #[cfg(doc)] because rustc applies the
+    // missing_docs lint without cfg(doc).
+    let mut wrapper_attrs: Vec<_> = input
+        .attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("doc"))
+        .cloned()
+        .collect();
+    wrapper_attrs.extend([
+        parse_quote! { #[cfg(not(doc))] },
+        parse_quote! {
+            #[::iex::imp::fix_hidden_lifetime_bug::fix_hidden_lifetime_bug(
+                crate = ::iex::imp::fix_hidden_lifetime_bug
+            )]
+        },
+        parse_quote! { #[inline(always)] },
+    ]);
+
+    let inline_attr = input
+        .attrs
+        .iter()
+        .find(|attr| attr.path().is_ident("inline"));
     let wrapper_fn = ItemFn {
-        attrs: vec![
-            parse_quote! { #[cfg(not(doc))] },
-            parse_quote! {
-                #[::iex::imp::fix_hidden_lifetime_bug::fix_hidden_lifetime_bug(
-                    crate = ::iex::imp::fix_hidden_lifetime_bug
-                )]
-            },
-            parse_quote! { #[inline(always)] },
-        ],
+        attrs: wrapper_attrs,
         vis: input.vis.clone(),
         sig: wrapper_sig,
         block: parse_quote_spanned! {
