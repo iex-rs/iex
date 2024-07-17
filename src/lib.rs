@@ -240,14 +240,17 @@
 /// ```
 pub use iex_derive::iex;
 
-use std::cell::Cell;
+use std::cell::UnsafeCell;
 use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
+
+mod exception;
+use exception::Exception;
 
 struct IexPanic;
 
 thread_local! {
-    static EXCEPTION: Cell<*mut ()> = const { Cell::new(std::ptr::null_mut()) };
+    static EXCEPTION: UnsafeCell<Exception> = const { UnsafeCell::new(Exception::new()) };
 }
 
 mod sealed {
@@ -329,7 +332,8 @@ impl<T, E> Outcome for Result<T, E> {
         E: Into<F>,
     {
         self.unwrap_or_else(|error| {
-            EXCEPTION.set(Box::into_raw(Box::new(error.into())).cast());
+            let error = error.into();
+            EXCEPTION.with(|exception| unsafe { &mut *exception.get() }.write(Some(error)));
             std::panic::resume_unwind(Box::new(IexPanic))
         })
     }
@@ -362,15 +366,11 @@ impl<T, U, F: FnOnce(T) -> U> Drop for ExceptionMapper<T, U, F> {
         };
 
         // Resolve TLS just once
-        EXCEPTION.with(|exception| {
-            let error_ptr: *mut T = exception.get().cast();
-            if error_ptr.is_null() {
-                return;
-            }
-            let error: T = *unsafe { Box::from_raw(error_ptr) };
-            let error: U = f(error);
-            let error_ptr: *mut U = Box::into_raw(Box::new(error));
-            exception.set(error_ptr.cast());
+        EXCEPTION.with(|exception| unsafe {
+            let exception = exception.get();
+            // Derefence twice instead of keeping a &mut around, because f() may call a function
+            // that uses 'exception'.
+            (*exception).write::<U>((*exception).read::<T>().map(f));
         })
     }
 }
@@ -441,11 +441,13 @@ pub mod imp {
         }
 
         fn into_result(self) -> Result<T, E> {
+            EXCEPTION.with(|exception| unsafe { &mut *exception.get() }.write::<E>(None));
             std::panic::catch_unwind(AssertUnwindSafe(|| self.0(Marker(PhantomData)))).map_err(
                 |payload| {
                     if payload.downcast_ref::<IexPanic>().is_some() {
-                        let error_ptr = EXCEPTION.replace(std::ptr::null_mut()).cast();
-                        *unsafe { Box::from_raw(error_ptr) }
+                        EXCEPTION
+                            .with(|exception| unsafe { (*exception.get()).read() })
+                            .unwrap()
                     } else {
                         std::panic::resume_unwind(payload)
                     }
