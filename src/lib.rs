@@ -242,6 +242,7 @@ pub use iex_derive::iex;
 
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
+use std::mem::ManuallyDrop;
 use std::panic::AssertUnwindSafe;
 
 mod exception;
@@ -269,9 +270,7 @@ pub trait Outcome: sealed::Sealed {
     type Error;
 
     #[doc(hidden)]
-    fn get_value_or_panic<F>(self, marker: imp::Marker<F>) -> Self::Output
-    where
-        Self::Error: Into<F>;
+    fn get_value_or_panic(self, marker: imp::Marker<Self::Error>) -> Self::Output;
 
     /// Apply a function to the `Err` value, leaving `Ok` untouched.
     ///
@@ -327,12 +326,8 @@ impl<T, E> Outcome for Result<T, E> {
 
     type Error = E;
 
-    fn get_value_or_panic<F>(self, _marker: imp::Marker<F>) -> T
-    where
-        E: Into<F>,
-    {
+    fn get_value_or_panic(self, _marker: imp::Marker<E>) -> T {
         self.unwrap_or_else(|error| {
-            let error = error.into();
             EXCEPTION.with(|exception| unsafe { &mut *exception.get() }.write(Some(error)));
             std::panic::resume_unwind(Box::new(IexPanic))
         })
@@ -350,27 +345,31 @@ impl<T, E> Outcome for Result<T, E> {
     }
 }
 
-struct ExceptionMapper<T, U, F: FnOnce(T) -> U>(Option<F>, PhantomData<fn(T) -> U>);
+struct ExceptionMapper<T, U, F: FnOnce(T) -> U>(ManuallyDrop<F>, PhantomData<fn(T) -> U>);
 
 impl<T, U, F: FnOnce(T) -> U> ExceptionMapper<T, U, F> {
+    unsafe fn new(f: F) -> Self {
+        Self(ManuallyDrop::new(f), PhantomData)
+    }
+
     fn swallow(mut self) {
-        self.0.take();
+        unsafe { ManuallyDrop::drop(&mut self.0) };
         std::mem::forget(self);
     }
 }
 
 impl<T, U, F: FnOnce(T) -> U> Drop for ExceptionMapper<T, U, F> {
     fn drop(&mut self) {
-        let Some(f) = self.0.take() else {
-            return;
-        };
-
         // Resolve TLS just once
         EXCEPTION.with(|exception| unsafe {
             let exception = exception.get();
-            // Derefence twice instead of keeping a &mut around, because f() may call a function
-            // that uses 'exception'.
-            (*exception).write::<U>((*exception).read::<T>().map(f));
+            // Dereference twice instead of keeping a &mut around, because self.0() may call a
+            // function that uses 'exception'.
+            (*exception).write::<U>(
+                (*exception)
+                    .read::<T>()
+                    .map(ManuallyDrop::take(&mut self.0)),
+            );
         })
     }
 }
@@ -381,15 +380,50 @@ pub mod imp {
 
     pub use fix_hidden_lifetime_bug;
 
-    pub struct Marker<F>(PhantomData<F>);
+    pub trait _IexForward<T> {
+        fn _iex_forward(self) -> T;
+    }
 
-    impl<F> Clone for Marker<F> {
+    pub struct Marker<E>(PhantomData<E>);
+
+    impl<E, R: Outcome> _IexForward<R::Output> for &mut (Marker<E>, ManuallyDrop<R>)
+    where
+        R::Error: Into<E>,
+    {
+        fn _iex_forward(self) -> R::Output {
+            let outcome = unsafe { ManuallyDrop::take(&mut self.1) };
+            if typeid::of::<E>() == typeid::of::<R::Error>() {
+                // SAFETY: If we enter this conditional, E and R::Error differ only in lifetimes.
+                // Lifetimes are erased in runtime, so `impl Into<E> for R::Error` has the same
+                // implementation as `impl Into<T> for T` for some `T`, and that blanket
+                // implementation is a no-op. Therefore, no conversion needs to happen.
+                outcome.get_value_or_panic(Marker(PhantomData))
+            } else {
+                let exception_mapper = unsafe { ExceptionMapper::new(<R::Error as Into<E>>::into) };
+                let output = outcome.get_value_or_panic(Marker(PhantomData));
+                exception_mapper.swallow();
+                output
+            }
+        }
+    }
+
+    // Autoref specialization for conversion-less forwarding. This *must* be callable without taking
+    // a (mutable) reference in user code, so that the LLVM optimizer has less work to do. This
+    // actually matters for serde.
+    impl<R: Outcome> _IexForward<R::Output> for (Marker<R::Error>, ManuallyDrop<R>) {
+        fn _iex_forward(mut self) -> R::Output {
+            let outcome = unsafe { ManuallyDrop::take(&mut self.1) };
+            outcome.get_value_or_panic(self.0)
+        }
+    }
+
+    impl<E> Clone for Marker<E> {
         fn clone(&self) -> Self {
             *self
         }
     }
 
-    impl<F> Copy for Marker<F> {}
+    impl<E> Copy for Marker<E> {}
 
     pub struct IexResult<T, E, Func>(Func, PhantomData<fn() -> (T, E)>);
 
@@ -404,25 +438,8 @@ pub mod imp {
         type Output = T;
         type Error = E;
 
-        fn get_value_or_panic<F>(self, _marker: Marker<F>) -> T
-        where
-            E: Into<F>,
-        {
-            let exception_mapper = ExceptionMapper(
-                if typeid::of::<E>() == typeid::of::<F>() {
-                    // SAFETY: If we enter this conditional, E and F differ only in lifetimes.
-                    // Lifetimes are erased in runtime, so `impl Into<F> for E` has the same
-                    // implementation as `impl Into<T> for T` for some `T`, and that blanket
-                    // implementation is a no-op. Therefore, no conversion needs to happen.
-                    None
-                } else {
-                    Some(<E as Into<F>>::into)
-                },
-                PhantomData,
-            );
-            let output = self.0(Marker(PhantomData));
-            exception_mapper.swallow();
-            output
+        fn get_value_or_panic(self, marker: Marker<E>) -> T {
+            self.0(marker)
         }
 
         fn map_err<F, Map: FnOnce(Self::Error) -> F>(
@@ -431,8 +448,8 @@ pub mod imp {
         ) -> impl Outcome<Output = Self::Output, Error = F> {
             IexResult(
                 |_marker| {
-                    let exception_mapper = ExceptionMapper(Some(map), PhantomData);
-                    let value = self.get_value_or_panic::<E>(Marker(PhantomData));
+                    let exception_mapper = unsafe { ExceptionMapper::new(map) };
+                    let value = self.get_value_or_panic(Marker(PhantomData));
                     exception_mapper.swallow();
                     value
                 },

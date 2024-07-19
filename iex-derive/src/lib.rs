@@ -17,7 +17,9 @@ struct ReplaceTry;
 impl VisitMut for ReplaceTry {
     fn visit_expr_mut(&mut self, node: &mut Expr) {
         if let Expr::Try(ExprTry { expr, .. }) = node {
-            *node = parse_quote!(::iex::Outcome::get_value_or_panic(#expr, _unsafe_iex_marker));
+            *node = parse_quote! {
+                (_unsafe_iex_marker, ::core::mem::ManuallyDrop::new(#expr))._iex_forward()
+            };
         }
         visit_expr_mut(self, node);
     }
@@ -141,7 +143,8 @@ fn transform_item_fn(captures: Vec<Lifetime>, input: ItemFn) -> proc_macro::Toke
     ReplaceTry.visit_block_mut(&mut closure_block);
 
     let mut closure: ExprClosure = parse_quote! {
-        #constness #asyncness move |_unsafe_iex_marker| -> #result_type {
+        #constness #asyncness
+        move |_unsafe_iex_marker: ::iex::imp::Marker<#error_type>| -> #result_type {
             let _iex_no_copy = _iex_no_copy; // Force FnOnce inference
             #closure_block
         }
@@ -187,6 +190,8 @@ fn transform_item_fn(captures: Vec<Lifetime>, input: ItemFn) -> proc_macro::Toke
             // This span is required for dead code diagnostic
             input_span =>
             {
+                #[allow(unused_imports)]
+                use ::iex::imp::_IexForward;
                 let _iex_no_copy = ::iex::imp::NoCopy; // Force FnOnce inference
                 // We need { .. } to support the #[inline] attribute on the closure
                 #[allow(unused_mut)]
