@@ -328,7 +328,7 @@ impl<T, E> Outcome for Result<T, E> {
 
     fn get_value_or_panic(self, _marker: imp::Marker<E>) -> T {
         self.unwrap_or_else(|error| {
-            EXCEPTION.with(|exception| unsafe { &mut *exception.get() }.write(Some(error)));
+            EXCEPTION.with(|exception| unsafe { &mut *exception.get() }.write(error));
             std::panic::resume_unwind(Box::new(IexPanic))
         })
     }
@@ -365,11 +365,9 @@ impl<T, U, F: FnOnce(T) -> U> Drop for ExceptionMapper<T, U, F> {
             let exception = exception.get();
             // Dereference twice instead of keeping a &mut around, because self.0() may call a
             // function that uses 'exception'.
-            (*exception).write::<U>(
-                (*exception)
-                    .read::<T>()
-                    .map(ManuallyDrop::take(&mut self.0)),
-            );
+            if let Some(error) = (*exception).read::<T>() {
+                (*exception).write::<U>(ManuallyDrop::take(&mut self.0)(error));
+            }
         })
     }
 }
@@ -460,17 +458,18 @@ pub mod imp {
         }
 
         fn into_result(self) -> Result<T, E> {
-            EXCEPTION.with(|exception| unsafe { &mut *exception.get() }.write::<E>(None));
             std::panic::catch_unwind(AssertUnwindSafe(|| self.0(Marker(PhantomData)))).map_err(
                 #[cold]
                 |payload| {
-                    if payload.downcast_ref::<IexPanic>().is_some() {
-                        EXCEPTION
-                            .with(|exception| unsafe { (*exception.get()).read() })
-                            .unwrap()
-                    } else {
-                        std::panic::resume_unwind(payload)
+                    if !payload.is::<IexPanic>() {
+                        std::panic::resume_unwind(payload);
                     }
+                    EXCEPTION.with(|exception| unsafe {
+                        let exception = &mut *exception.get();
+                        let error = exception.read_unchecked();
+                        exception.clear();
+                        error
+                    })
                 },
             )
         }

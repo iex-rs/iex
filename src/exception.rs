@@ -13,6 +13,12 @@ pub(crate) struct Exception {
     data: MaybeUninit<[u8; EXCEPTION_INLINE_SIZE]>,
 }
 
+#[repr(C)]
+struct Just<T> {
+    discriminant: usize,
+    value: MaybeUninit<T>,
+}
+
 impl Exception {
     pub(crate) const fn new() -> Self {
         Self {
@@ -20,31 +26,50 @@ impl Exception {
         }
     }
 
-    const fn is_boxed<T>() -> bool {
-        size_of::<Option<T>>() > EXCEPTION_INLINE_SIZE
+    const fn is_small<T>() -> bool {
+        size_of::<Just<T>>() <= EXCEPTION_INLINE_SIZE
     }
 
-    unsafe fn write_inline<T>(&mut self, value: Option<T>) {
-        self.data.as_mut_ptr().cast::<Option<T>>().write(value);
-    }
-
-    pub(crate) fn write<T>(&mut self, value: Option<T>) {
-        if Self::is_boxed::<T>() {
-            unsafe { self.write_inline(value.map(Box::new)) }
-        } else {
-            unsafe { self.write_inline(value) }
+    pub(crate) fn write<T>(&mut self, value: T) {
+        unsafe {
+            let ptr = self.data.as_mut_ptr();
+            if Self::is_small::<T>() {
+                ptr.cast::<Just<T>>().write(Just {
+                    discriminant: 1,
+                    value: MaybeUninit::new(value),
+                });
+            } else {
+                ptr.cast::<Option<Box<T>>>().write(Some(Box::new(value)));
+            }
         }
     }
 
-    unsafe fn read_inline<T>(&self) -> Option<T> {
-        self.data.as_ptr().cast::<Option<T>>().read()
+    pub(crate) fn clear(&mut self) {
+        unsafe {
+            self.data.as_mut_ptr().cast::<usize>().write(0);
+        }
     }
 
     pub(crate) unsafe fn read<T>(&self) -> Option<T> {
-        if Self::is_boxed::<T>() {
-            unsafe { self.read_inline().map(|b: Box<T>| *b) }
+        let ptr = self.data.as_ptr();
+        if Self::is_small::<T>() {
+            let just = ptr.cast::<Just<T>>().read();
+            if just.discriminant == 0 {
+                None
+            } else {
+                Some(just.value.assume_init())
+            }
         } else {
-            unsafe { self.read_inline() }
+            ptr.cast::<Option<Box<T>>>().read().map(|b| *b)
+        }
+    }
+
+    pub(crate) unsafe fn read_unchecked<T>(&self) -> T {
+        let ptr = self.data.as_ptr();
+        if Self::is_small::<T>() {
+            ptr.cast::<Just<T>>().read().value.assume_init()
+        } else {
+            *ptr.cast::<Box<T>>().read()
         }
     }
 }
