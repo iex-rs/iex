@@ -146,6 +146,15 @@ fn transform_item_fn(captures: Vec<Lifetime>, input: ItemFn) -> proc_macro::Toke
         #constness #asyncness
         move |_unsafe_iex_marker: ::iex::imp::Marker<#error_type>| {
             let _iex_no_copy = _iex_no_copy; // Force FnOnce inference
+            #[allow(unused_macros)]
+            macro_rules! iex_try {
+                ($e:expr) => {{
+                    (
+                        _unsafe_iex_marker,
+                        ::core::mem::ManuallyDrop::new($e),
+                    )._iex_forward()
+                }};
+            }
             #closure_block
         }
     };
