@@ -380,16 +380,18 @@ pub mod imp {
 
     pub use fix_hidden_lifetime_bug;
 
-    pub trait _IexForward<T> {
-        fn _iex_forward(self) -> T;
+    pub trait _IexForward {
+        type Output;
+        fn _iex_forward(self) -> Self::Output;
     }
 
     pub struct Marker<E>(PhantomData<E>);
 
-    impl<E, R: Outcome> _IexForward<R::Output> for &mut (Marker<E>, ManuallyDrop<R>)
+    impl<E, R: Outcome> _IexForward for &mut (Marker<E>, ManuallyDrop<R>)
     where
         R::Error: Into<E>,
     {
+        type Output = R::Output;
         fn _iex_forward(self) -> R::Output {
             let outcome = unsafe { ManuallyDrop::take(&mut self.1) };
             if typeid::of::<E>() == typeid::of::<R::Error>() {
@@ -410,10 +412,10 @@ pub mod imp {
     // Autoref specialization for conversion-less forwarding. This *must* be callable without taking
     // a (mutable) reference in user code, so that the LLVM optimizer has less work to do. This
     // actually matters for serde.
-    impl<R: Outcome> _IexForward<R::Output> for (Marker<R::Error>, ManuallyDrop<R>) {
-        fn _iex_forward(mut self) -> R::Output {
-            let outcome = unsafe { ManuallyDrop::take(&mut self.1) };
-            outcome.get_value_or_panic(self.0)
+    impl<R: Outcome> _IexForward for (Marker<R::Error>, ManuallyDrop<R>) {
+        type Output = R::Output;
+        fn _iex_forward(self) -> R::Output {
+            ManuallyDrop::into_inner(self.1).get_value_or_panic(self.0)
         }
     }
 
