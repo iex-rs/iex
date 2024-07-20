@@ -144,7 +144,7 @@ fn transform_item_fn(captures: Vec<Lifetime>, input: ItemFn) -> proc_macro::Toke
 
     let mut closure: ExprClosure = parse_quote! {
         #constness #asyncness
-        move |_unsafe_iex_marker: ::iex::imp::Marker<#error_type>| -> #result_type {
+        move |_unsafe_iex_marker: ::iex::imp::Marker<#error_type>| {
             let _iex_no_copy = _iex_no_copy; // Force FnOnce inference
             #closure_block
         }
