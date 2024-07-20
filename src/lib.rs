@@ -462,6 +462,7 @@ pub mod imp {
         fn into_result(self) -> Result<T, E> {
             EXCEPTION.with(|exception| unsafe { &mut *exception.get() }.write::<E>(None));
             std::panic::catch_unwind(AssertUnwindSafe(|| self.0(Marker(PhantomData)))).map_err(
+                #[cold]
                 |payload| {
                     if payload.downcast_ref::<IexPanic>().is_some() {
                         EXCEPTION
