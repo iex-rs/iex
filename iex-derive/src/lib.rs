@@ -4,7 +4,8 @@ use syn::{
     parse, parse_macro_input, parse_quote, parse_quote_spanned, parse_str,
     spanned::Spanned,
     visit_mut::{visit_expr_mut, VisitMut},
-    Expr, ExprClosure, ExprTry, ItemFn, Lifetime, ReturnType, Signature, TraitItemFn, Type,
+    Expr, ExprClosure, ExprTry, ImplItemFn, ItemFn, Lifetime, ReturnType, Signature, TraitItemFn,
+    Type,
 };
 
 #[derive(FromMeta)]
@@ -23,12 +24,11 @@ impl VisitMut for ReplaceTry {
         }
         visit_expr_mut(self, node);
     }
-    fn visit_item_fn_mut(&mut self, _node: &mut ItemFn) {
-        // Don't recurse into other functions or closures
-    }
-    fn visit_expr_closure_mut(&mut self, _node: &mut ExprClosure) {
-        // Don't recurse into other functions or closures
-    }
+    // Don't recurse into other functions or closures
+    fn visit_item_fn_mut(&mut self, _node: &mut ItemFn) {}
+    fn visit_impl_item_fn_mut(&mut self, _node: &mut ImplItemFn) {}
+    fn visit_trait_item_fn_mut(&mut self, _node: &mut TraitItemFn) {}
+    fn visit_expr_closure_mut(&mut self, _node: &mut ExprClosure) {}
 }
 
 fn transform_trait_item_fn(captures: Vec<Lifetime>, input: TraitItemFn) -> proc_macro::TokenStream {
