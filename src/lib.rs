@@ -323,6 +323,55 @@ pub trait Outcome: sealed::Sealed {
     ///
     /// This is a generalized and more efficient version of [`Result::map_err`].
     ///
+    /// # Ownership
+    ///
+    /// The semantics of ownership and capturing for `#[iex] Result` complicates the use of
+    /// `map_err` in some cases. Notably, using `f(...).map_err(|e| ...)` requires that `f(...)`
+    /// and `|e| ...` don't capture variables in incompatible ways:
+    ///
+    /// ```compile_fail
+    /// use iex::{iex, Outcome};
+    ///
+    /// struct Struct;
+    ///
+    /// impl Struct {
+    ///     #[iex]
+    ///     fn errors(&mut self) -> Result<(), i32> {
+    ///         Err(123)
+    ///     }
+    ///     fn error_mapper(&mut self, err: i32) -> i32 {
+    ///         err + 1
+    ///     }
+    ///     #[iex]
+    ///     fn calls(&mut self) -> Result<(), i32> {
+    ///         // closure requires unique access to `*self` but it is already borrowed
+    ///         self.errors().map_err(|err| self.error_mapper(err))
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// Use [`into_result`](Self::into_result) to make this work:
+    ///
+    /// ```
+    /// use iex::{iex, Outcome};
+    ///
+    /// struct Struct;
+    ///
+    /// impl Struct {
+    ///     #[iex]
+    ///     fn errors(&mut self) -> Result<(), i32> {
+    ///         Err(123)
+    ///     }
+    ///     fn error_mapper(&mut self, err: i32) -> i32 {
+    ///         err + 1
+    ///     }
+    ///     #[iex]
+    ///     fn calls(&mut self) -> Result<(), i32> {
+    ///         self.errors().into_result().map_err(|err| self.error_mapper(err))
+    ///     }
+    /// }
+    /// ```
+    ///
     /// # Example
     ///
     /// ```
