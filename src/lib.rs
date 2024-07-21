@@ -55,32 +55,26 @@
 //!
 //! Functions marked [`#[iex]`](macro@iex) are supposed to return a [`Result<T, E>`] in their
 //! definition. The macro rewrites them to return an opaque type `#[iex] Result<T, E>` instead. Upon
-//! calling such a function, there are two things you must _immediately_ do with its output:
+//! calling such a function, there are three things you can _immediately_ do to its output:
 //! - Either you can propagate it with `?` if it's called from another [`#[iex]`](macro@iex)
 //!   function,
-//! - Or you must cast it to a [`Result`] via [`.into_result()`](Outcome::into_result).
+//! - Or you can [`.map_err(..)?`](Outcome::map_err) it if you need to replace the error and the
+//!   implicit [`Into`]-conversion does not suffice,
+//! - Or you must cast it to a [`Result`] via [`.into_result()`](Outcome::into_result). This is the
+//!   only option if you need to handle the error.
 //!
 //! Doing anything else to the return value, e.g. storing it in a variable and reusing later does
 //! not cause UB, but will not work the way you think. If you want to swallow the error, use
 //! `let _ = func().into_result();` instead.
 //!
-//! Notably, this list does not include returning from a function with an `#[iex] Result` obtained
-//! from a call of another function. You need to use `Ok(..?)`. Sorry.
-//!
-//! A [`Result`] is only slow when used across function boundaries as a return type. Using it within
-//! a function is mostly fine, so don't hesitate to use [`.into_result()`](Outcome::into_result) if
-//! you wish to match on the return value, extract the error, or call a combinator like
-//! [`Result::or_else`].
-//!
-//! `?` automatically applies [`Into`] conversion to the error type. If you need a more complicated
-//! error conversion, apply [`.map_err(..)?`](Outcome::map_err) to the `#[iex] Result` value.
+//! Directly returning an `#[iex] Result` (obtained from a function call) from another
+//! [`#[iex]`](macro@iex) function works, provided that it's the only `return` statement in the
+//! function. Use `Ok(..?)` if there are multiple returns.
 //!
 //! [`#[iex]`](macro@iex) works on methods. If applied to a function in an `impl Trait for Type`
 //! block, the corresponding function in the `trait Trait` block should also be marked with
 //! [`#[iex]`](macro@iex). Such traits are not object-safe, unless the method is restricted to
-//! `where Self: Sized` (open an issue if you want me to spend time developing a workaround). A
-//! particular implementation can return an algebraic [`Result`] even if the declaration is marked
-//! with [`#[iex]`](macro@iex), but this requires `#[allow(refining_impl_trait)]`.
+//! `where Self: Sized` (open an issue if you want me to spend time developing a workaround).
 
 /// Use unwinding for error propagation from a function.
 ///
