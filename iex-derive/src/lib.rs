@@ -184,6 +184,9 @@ fn transform_item_fn(captures: Vec<Lifetime>, input: ItemFn) -> proc_macro::Toke
                 crate = ::iex::imp::fix_hidden_lifetime_bug
             )]
         },
+        // FIXME: removal blocked on
+        // https://github.com/danielhenrymantilla/fix_hidden_lifetime_bug.rs/issues/14
+        parse_quote! { #[allow(clippy::needless_lifetimes)] },
         parse_quote! { #[inline(always)] },
     ]);
 
