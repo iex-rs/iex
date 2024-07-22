@@ -17,6 +17,68 @@
 //! - Cleanly separates the happy and unhappy paths in the machine code, resulting in better
 //!   instruction locality.
 //!
+//! # Benchmark
+//!
+//! As a demonstration, we have rewritten [serde](https://serde.rs) and
+//! [serde_json](https://crates.io/crates/serde_json) to use `#[iex]` in the deserialization path
+//! and used the [Rust JSON Benchmark](https://github.com/serde-rs/json-benchmark) to compare
+//! performance. These are the results:
+//!
+//! <table width="100%">
+//!     <thead>
+//!         <tr>
+//!             <td rowspan="2">Speed (MB/s)</td>
+//!             <th colspan="2"><code>canada</code></th>
+//!             <th colspan="2"><code>citm_catalog</code></th>
+//!             <th colspan="2"><code>twitter</code></th>
+//!         </tr>
+//!         <tr>
+//!             <th>DOM</th>
+//!             <th>struct</th>
+//!             <th>DOM</th>
+//!             <th>struct</th>
+//!             <th>DOM</th>
+//!             <th>struct</th>
+//!         </tr>
+//!     </thead>
+//!     <tbody>
+//!         <tr>
+//!             <td><a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html"><code>Result</code></a></td>
+//!             <td align="center">296.2</td>
+//!             <td align="center">439.0</td>
+//!             <td align="center">392.4</td>
+//!             <td align="center">876.8</td>
+//!             <td align="center">274.8</td>
+//!             <td align="center">536.4</td>
+//!         </tr>
+//!         <tr>
+//!             <td><code>#[iex] Result</code></td>
+//!             <td align="center">294.8</td>
+//!             <td align="center">537.0</td>
+//!             <td align="center">400.6</td>
+//!             <td align="center">940.6</td>
+//!             <td align="center">303.8</td>
+//!             <td align="center">568.8</td>
+//!         </tr>
+//!         <tr>
+//!             <td>Performance increase</td>
+//!             <td align="center">-0.5%</td>
+//!             <td align="center">+22%</td>
+//!             <td align="center">+2%</td>
+//!             <td align="center">+7%</td>
+//!             <td align="center">+11%</td>
+//!             <td align="center">+6%</td>
+//!         </tr>
+//!     </tbody>
+//! </table>
+//!
+//! The data is averaged between 5 runs. The repositories for data reproduction are published
+//! [on GitHub](https://github.com/orgs/iex-rs/repositories).
+//!
+//! Note that just blindly slapping [`#[iex]`](macro@iex) onto every single function might not
+//! increase your performance at best and will decrease it at worst. Like with every other
+//! optimization, it is critical to profile code and measure performance on realistic data.
+//!
 //! # Example
 //!
 //! ```
