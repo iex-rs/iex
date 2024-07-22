@@ -137,6 +137,8 @@
 //! [`#[iex]`](macro@iex). Such traits are not object-safe, unless the method is restricted to
 //! `where Self: Sized` (open an issue if you want me to spend time developing a workaround).
 
+#![cfg_attr(doc, feature(doc_auto_cfg))]
+
 /// Use unwinding for error propagation from a function.
 ///
 /// Applying this attribute to a function that returns [`Result<T, E>`] turns it into a function
@@ -349,6 +351,11 @@ use std::panic::AssertUnwindSafe;
 
 mod exception;
 use exception::Exception;
+
+#[cfg(feature = "anyhow")]
+mod anyhow_compat;
+#[cfg(feature = "anyhow")]
+pub use anyhow_compat::Context;
 
 struct IexPanic;
 

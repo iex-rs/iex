@@ -1,11 +1,16 @@
 use anyhow::{bail, Result};
-use iex::{iex, Outcome};
+use iex::{iex, Context, Outcome};
 
 #[iex]
 fn returns_anyhow_error() -> Result<()> {
     bail!(r"¯\_(ツ)_/¯");
 }
 
+#[iex]
+fn adds_context_to_anyhow_error() -> Result<()> {
+    returns_anyhow_error().context("In adds_context_to_anyhow_error()")
+}
+
 fn main() {
-    returns_anyhow_error().into_result().unwrap();
+    adds_context_to_anyhow_error().into_result().unwrap();
 }
