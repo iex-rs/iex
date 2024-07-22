@@ -14,3 +14,6 @@ categories = ["rust-patterns"]
 fix-hidden-lifetime-bug = "0.2.6"
 iex-derive = { path = "iex-derive", version = "0.1.0" }
 typeid = "1.0.0"
+
+[dev-dependencies]
+anyhow = "1"
