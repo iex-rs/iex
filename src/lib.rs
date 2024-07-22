@@ -82,7 +82,6 @@
 //! # Example
 //!
 //! ```
-//! # #![feature(iterator_try_collect)]
 //! use iex::{iex, Outcome};
 //!
 //! #[iex]
