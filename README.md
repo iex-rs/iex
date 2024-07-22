@@ -78,7 +78,7 @@ The data is averaged between 5 runs. The repositories for data reproduction are 
 [on GitHub](https://github.com/orgs/iex-rs/repositories).
 
 # Example
-   
+
 ```rust
 use iex::{iex, Outcome};
 
