@@ -1,6 +1,6 @@
 [package]
 name = "iex-derive"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Alisa Sireneva <me@purplesyringa.moe>"]
 edition = "2021"
 description = "Derive macros for #[iex]"
