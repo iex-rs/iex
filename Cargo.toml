@@ -1,7 +1,14 @@
 [package]
 name = "iex"
 version = "0.1.0"
+authors = ["Alisa Sireneva <me@purplesyringa.moe>"]
 edition = "2021"
+description = "Idiomatic exceptions"
+documentation = "https://docs.rs/iex"
+repository = "https://github.com/iex-rs/iex"
+license = "MIT OR Apache-2.0"
+keywords = ["ergonomic", "error", "panic"]
+categories = ["rust-patterns"]
 
 [dependencies]
 fix-hidden-lifetime-bug = "0.2.6"
