@@ -683,3 +683,13 @@ pub mod example {
         a.checked_add(b).ok_or(a.wrapping_add(b))
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[iex]
+    fn marker_and_no_copy(marker: i32, no_copy: i32) -> Result<i32, ()> {
+        Ok(marker + no_copy)
+    }
+}

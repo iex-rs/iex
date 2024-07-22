@@ -1,11 +1,12 @@
 use darling::{ast::NestedMeta, FromMeta};
+use proc_macro2::Span;
 use quote::quote;
 use syn::{
     parse, parse_macro_input, parse_quote, parse_quote_spanned, parse_str,
     spanned::Spanned,
     visit_mut::{visit_expr_mut, VisitMut},
-    Expr, ExprClosure, ExprTry, ImplItemFn, ItemFn, Lifetime, ReturnType, Signature, TraitItemFn,
-    Type,
+    Expr, ExprClosure, ExprTry, Ident, ImplItemFn, ItemFn, Lifetime, ReturnType, Signature,
+    TraitItemFn, Type,
 };
 
 #[derive(FromMeta)]
@@ -18,8 +19,9 @@ struct ReplaceTry;
 impl VisitMut for ReplaceTry {
     fn visit_expr_mut(&mut self, node: &mut Expr) {
         if let Expr::Try(ExprTry { expr, .. }) = node {
-            *node = parse_quote! {
-                (_unsafe_iex_marker, ::core::mem::ManuallyDrop::new(#expr))._iex_forward()
+            *node = parse_quote_spanned! {
+                Span::mixed_site() =>
+                (marker, ::core::mem::ManuallyDrop::new(#expr))._iex_forward()
             };
         }
         visit_expr_mut(self, node);
@@ -142,18 +144,18 @@ fn transform_item_fn(captures: Vec<Lifetime>, input: ItemFn) -> proc_macro::Toke
     let mut closure_block = input.block;
     ReplaceTry.visit_block_mut(&mut closure_block);
 
-    let mut closure: ExprClosure = parse_quote! {
+    let no_copy: Ident = parse_quote_spanned! { Span::mixed_site() => no_copy };
+
+    let mut closure: ExprClosure = parse_quote_spanned! {
+        Span::mixed_site() =>
         #constness #asyncness
-        move |_unsafe_iex_marker: ::iex::imp::Marker<#error_type>| {
-            let _iex_no_copy = _iex_no_copy; // Force FnOnce inference
+        move |marker: ::iex::imp::Marker<#error_type>| {
+            let #no_copy = #no_copy; // Force FnOnce inference
             #[allow(unused_macros)]
             macro_rules! iex_try {
-                ($e:expr) => {{
-                    (
-                        _unsafe_iex_marker,
-                        ::core::mem::ManuallyDrop::new($e),
-                    )._iex_forward()
-                }};
+                ($e:expr) => {
+                    (marker, ::core::mem::ManuallyDrop::new($e))._iex_forward()
+                };
             }
             #closure_block
         }
@@ -204,16 +206,13 @@ fn transform_item_fn(captures: Vec<Lifetime>, input: ItemFn) -> proc_macro::Toke
             {
                 #[allow(unused_imports)]
                 use ::iex::imp::_IexForward;
-                let _iex_no_copy = ::iex::imp::NoCopy; // Force FnOnce inference
+                let #no_copy = ::iex::imp::NoCopy; // Force FnOnce inference
                 // We need { .. } to support the #[inline] attribute on the closure
                 #[allow(unused_mut)]
                 let mut #name = { #closure };
                 ::iex::imp::IexResult::new(
-                    #inline_attr move |_unsafe_iex_marker| {
-                        ::iex::Outcome::get_value_or_panic(
-                            #name(_unsafe_iex_marker),
-                            _unsafe_iex_marker,
-                        )
+                    #inline_attr move |marker| {
+                        ::iex::Outcome::get_value_or_panic(#name(marker), marker)
                     },
                 )
             }
