@@ -10,7 +10,7 @@ use std::fmt::Display;
 ///
 /// ```rust
 /// use anyhow::{bail, Result};
-/// use iex::{iex, Context};
+/// use iex::{iex, AnyhowContext};
 ///
 /// #[iex]
 /// fn returns_anyhow_error() -> Result<()> {
@@ -22,7 +22,7 @@ use std::fmt::Display;
 ///     returns_anyhow_error().context("In adds_context_to_anyhow_error()")
 /// }
 /// ```
-pub trait Context: Outcome<Error = Error> {
+pub trait AnyhowContext: Outcome<Error = Error> {
     /// Wrap the error value with additional context.
     #[iex]
     fn context<C>(self, context: C) -> Result<Self::Output, Error>
@@ -38,7 +38,7 @@ pub trait Context: Outcome<Error = Error> {
         F: FnOnce() -> C;
 }
 
-impl<R: Outcome<Error = Error>> Context for R {
+impl<R: Outcome<Error = Error>> AnyhowContext for R {
     #[iex]
     fn context<C>(self, context: C) -> Result<R::Output, Error>
     where

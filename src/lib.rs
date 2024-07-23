@@ -355,7 +355,7 @@ use exception::Exception;
 #[cfg(feature = "anyhow")]
 mod anyhow_compat;
 #[cfg(feature = "anyhow")]
-pub use anyhow_compat::Context;
+pub use anyhow_compat::AnyhowContext;
 
 struct IexPanic;
 
