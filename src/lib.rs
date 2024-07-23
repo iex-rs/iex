@@ -412,7 +412,34 @@ pub trait Outcome: sealed::Sealed {
     /// }
     /// ```
     ///
-    /// Use [`into_result`](Self::into_result) to make this work:
+    /// `#[iex]` provides a workaround for this particular usecase. The pattern
+    /// `(..).map_err(#[iex(shares = ..)] ..)?` (and only this pattern, the `?` is required) allows
+    /// you to share variables between the fallible function and the error handler. A *mutable
+    /// reference* to the variable will be visible to the fallible function, and the *value* of the
+    /// variable will be visible to the error handler. This applies to `self` too:
+    ///
+    /// ```
+    /// use iex::{iex, Outcome};
+    ///
+    /// struct Struct;
+    ///
+    /// impl Struct {
+    ///     #[iex]
+    ///     fn errors(&mut self) -> Result<(), i32> {
+    ///         Err(123)
+    ///     }
+    ///     fn error_mapper(&mut self, err: i32) -> i32 {
+    ///         err + 1
+    ///     }
+    ///     #[iex]
+    ///     fn calls(&mut self) -> Result<(), i32> {
+    ///         Ok(self.errors().map_err(#[iex(shares = self)] |err| self.error_mapper(err))?)
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// In a more complicated case, you would have to resort to the less efficient
+    /// [`into_result`](Self::into_result):
     ///
     /// ```
     /// use iex::{iex, Outcome};
@@ -503,33 +530,6 @@ impl<T, E> Outcome for Result<T, E> {
     }
 }
 
-struct ExceptionMapper<T, U, F: FnOnce(T) -> U>(ManuallyDrop<F>, PhantomData<fn(T) -> U>);
-
-impl<T, U, F: FnOnce(T) -> U> ExceptionMapper<T, U, F> {
-    unsafe fn new(f: F) -> Self {
-        Self(ManuallyDrop::new(f), PhantomData)
-    }
-
-    fn swallow(mut self) {
-        unsafe { ManuallyDrop::drop(&mut self.0) };
-        std::mem::forget(self);
-    }
-}
-
-impl<T, U, F: FnOnce(T) -> U> Drop for ExceptionMapper<T, U, F> {
-    fn drop(&mut self) {
-        // Resolve TLS just once
-        EXCEPTION.with(|exception| unsafe {
-            let exception = exception.get();
-            // Dereference twice instead of keeping a &mut around, because self.0() may call a
-            // function that uses 'exception'.
-            if let Some(error) = (*exception).read::<T>() {
-                (*exception).write::<U>(ManuallyDrop::take(&mut self.0)(error));
-            }
-        })
-    }
-}
-
 #[doc(hidden)]
 pub mod imp {
     use super::*;
@@ -543,6 +543,12 @@ pub mod imp {
 
     pub struct Marker<E>(PhantomData<E>);
 
+    impl<E> Marker<E> {
+        unsafe fn new() -> Self {
+            Self(PhantomData)
+        }
+    }
+
     impl<E, R: Outcome> _IexForward for &mut (Marker<E>, ManuallyDrop<R>)
     where
         R::Error: Into<E>,
@@ -555,10 +561,11 @@ pub mod imp {
                 // Lifetimes are erased in runtime, so `impl Into<E> for R::Error` has the same
                 // implementation as `impl Into<T> for T` for some `T`, and that blanket
                 // implementation is a no-op. Therefore, no conversion needs to happen.
-                outcome.get_value_or_panic(Marker(PhantomData))
+                outcome.get_value_or_panic(unsafe { Marker::new() })
             } else {
-                let exception_mapper = unsafe { ExceptionMapper::new(<R::Error as Into<E>>::into) };
-                let output = outcome.get_value_or_panic(Marker(PhantomData));
+                let exception_mapper =
+                    ExceptionMapper::new(self.0, (), |_, err| Into::<E>::into(err));
+                let output = outcome.get_value_or_panic(exception_mapper.get_in_marker());
                 exception_mapper.swallow();
                 output
             }
@@ -583,6 +590,52 @@ pub mod imp {
 
     impl<E> Copy for Marker<E> {}
 
+    pub struct ExceptionMapper<S, T, U, F: FnOnce(S, T) -> U> {
+        state: ManuallyDrop<S>,
+        f: ManuallyDrop<F>,
+        phantom: PhantomData<fn(S, T) -> U>,
+    }
+
+    impl<S, T, U, F: FnOnce(S, T) -> U> ExceptionMapper<S, T, U, F> {
+        pub fn new(_marker: Marker<U>, state: S, f: F) -> Self {
+            Self {
+                state: ManuallyDrop::new(state),
+                f: ManuallyDrop::new(f),
+                phantom: PhantomData,
+            }
+        }
+
+        pub fn get_in_marker(&self) -> Marker<T> {
+            unsafe { Marker::new() }
+        }
+
+        pub fn get_state(&mut self) -> &mut S {
+            &mut self.state
+        }
+
+        pub fn swallow(mut self) {
+            unsafe { ManuallyDrop::drop(&mut self.state) };
+            unsafe { ManuallyDrop::drop(&mut self.f) };
+            std::mem::forget(self);
+        }
+    }
+
+    impl<S, T, U, F: FnOnce(S, T) -> U> Drop for ExceptionMapper<S, T, U, F> {
+        fn drop(&mut self) {
+            // Resolve TLS just once
+            EXCEPTION.with(|exception| unsafe {
+                let exception = exception.get();
+                // Dereference twice instead of keeping a &mut around, because self.0() may call a
+                // function that uses 'exception'.
+                if let Some(error) = (*exception).read::<T>() {
+                    let state = ManuallyDrop::take(&mut self.state);
+                    let f = ManuallyDrop::take(&mut self.f);
+                    (*exception).write::<U>(f(state, error));
+                }
+            })
+        }
+    }
+
     pub struct IexResult<T, E, Func>(Func, PhantomData<fn() -> (T, E)>);
 
     impl<T, E, Func> IexResult<T, E, Func> {
@@ -605,9 +658,9 @@ pub mod imp {
             map: Map,
         ) -> impl Outcome<Output = Self::Output, Error = F> {
             IexResult(
-                |_marker| {
-                    let exception_mapper = unsafe { ExceptionMapper::new(map) };
-                    let value = self.get_value_or_panic(Marker(PhantomData));
+                |marker| {
+                    let exception_mapper = ExceptionMapper::new(marker, (), |(), err| map(err));
+                    let value = self.get_value_or_panic(exception_mapper.get_in_marker());
                     exception_mapper.swallow();
                     value
                 },
@@ -616,7 +669,7 @@ pub mod imp {
         }
 
         fn into_result(self) -> Result<T, E> {
-            std::panic::catch_unwind(AssertUnwindSafe(|| self.0(Marker(PhantomData)))).map_err(
+            std::panic::catch_unwind(AssertUnwindSafe(|| self.0(unsafe { Marker::new() }))).map_err(
                 #[cold]
                 |payload| {
                     if !payload.is::<IexPanic>() {

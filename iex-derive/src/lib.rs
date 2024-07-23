@@ -1,12 +1,12 @@
-use darling::{ast::NestedMeta, FromMeta};
+use darling::{ast::NestedMeta, FromAttributes, FromMeta};
 use proc_macro2::Span;
 use quote::quote;
 use syn::{
     parse, parse_macro_input, parse_quote, parse_quote_spanned, parse_str,
     spanned::Spanned,
     visit_mut::{visit_expr_mut, VisitMut},
-    Expr, ExprClosure, ExprTry, Ident, ImplItemFn, ItemFn, Lifetime, ReturnType, Signature,
-    TraitItemFn, Type,
+    Expr, ExprClosure, ExprMethodCall, ExprTry, Ident, ImplItemFn, ItemFn, Lifetime, ReturnType,
+    Signature, TraitItemFn, Type,
 };
 
 #[derive(FromMeta)]
@@ -15,14 +15,106 @@ struct MacroArgs {
     captures: Vec<String>,
 }
 
-struct ReplaceTry;
+#[derive(FromAttributes, Debug)]
+#[darling(attributes(iex))]
+struct MapErrMacroArgs {
+    #[darling(multiple)]
+    shares: Vec<Ident>,
+}
+
+struct ReplaceSelf;
+
+impl VisitMut for ReplaceSelf {
+    fn visit_ident_mut(&mut self, node: &mut Ident) {
+        if node == "self" {
+            *node = Ident::new("iex_self", Span::mixed_site());
+        }
+    }
+    // Don't recurse into other functions
+    fn visit_item_fn_mut(&mut self, _node: &mut ItemFn) {}
+    fn visit_impl_item_fn_mut(&mut self, _node: &mut ImplItemFn) {}
+    fn visit_trait_item_fn_mut(&mut self, _node: &mut TraitItemFn) {}
+}
+
+fn generate_map_err(outcome: &mut Expr, closure: &mut Expr, attrs: MapErrMacroArgs) -> Expr {
+    let shares_original = attrs.shares;
+
+    let shares: Vec<_> = shares_original
+        .iter()
+        .map(|ident| {
+            if ident == "self" {
+                ReplaceSelf.visit_expr_mut(outcome);
+                ReplaceSelf.visit_expr_mut(closure);
+                Ident::new("iex_self", Span::mixed_site())
+            } else {
+                ident.clone()
+            }
+        })
+        .collect();
+
+    parse_quote_spanned! {
+        Span::mixed_site() => {
+            let mut exception_mapper = ::iex::imp::ExceptionMapper::new(
+                marker,
+                (#(#shares_original,)*),
+                |(#(mut #shares,)*), err| (#closure)(err),
+            );
+            let marker = exception_mapper.get_in_marker();
+            let (#(#shares,)*) = exception_mapper.get_state();
+            #(let mut #shares = #shares;)*
+            let value = (marker, ::core::mem::ManuallyDrop::new(#outcome))._iex_forward();
+            exception_mapper.swallow();
+            value
+        }
+    }
+}
+
+fn try_parse_map_err(expr: &mut Expr) -> darling::Result<Option<Expr>> {
+    let Expr::MethodCall(ExprMethodCall {
+        receiver: outcome,
+        method,
+        args,
+        ..
+    }) = expr
+    else {
+        return Ok(None);
+    };
+
+    if method != "map_err" || args.len() != 1 {
+        return Ok(None);
+    }
+
+    let Expr::Closure(ExprClosure { ref mut attrs, .. }) = args[0] else {
+        return Ok(None);
+    };
+
+    let parsed_attrs = MapErrMacroArgs::from_attributes(attrs)?;
+    if parsed_attrs.shares.is_empty() {
+        // Don't accidentally rewrite code that wasn't ours
+        return Ok(None);
+    }
+
+    attrs.retain(|attr| !attr.path().is_ident("iex"));
+    Ok(Some(generate_map_err(outcome, &mut args[0], parsed_attrs)))
+}
+
+struct ReplaceTry {
+    errors: darling::error::Accumulator,
+}
+
 impl VisitMut for ReplaceTry {
     fn visit_expr_mut(&mut self, node: &mut Expr) {
         if let Expr::Try(ExprTry { expr, .. }) = node {
-            *node = parse_quote_spanned! {
-                Span::mixed_site() =>
-                (marker, ::core::mem::ManuallyDrop::new(#expr))._iex_forward()
-            };
+            *node = self
+                .errors
+                .handle_in(|| try_parse_map_err(expr))
+                .unwrap_or(None)
+                .unwrap_or_else(|| {
+                    parse_quote_spanned! {
+                        Span::mixed_site() =>
+                        (marker, ::core::mem::ManuallyDrop::new(#expr))._iex_forward()
+                    }
+                });
         }
         visit_expr_mut(self, node);
     }
@@ -142,7 +234,13 @@ fn transform_item_fn(captures: Vec<Lifetime>, input: ItemFn) -> proc_macro::Toke
     let asyncness = input.sig.asyncness;
 
     let mut closure_block = input.block;
-    ReplaceTry.visit_block_mut(&mut closure_block);
+    let mut replace_try = ReplaceTry {
+        errors: darling::Error::accumulator(),
+    };
+    replace_try.visit_block_mut(&mut closure_block);
+    if let Err(err) = replace_try.errors.finish() {
+        return err.write_errors().into();
+    }
 
     let no_copy: Ident = parse_quote_spanned! { Span::mixed_site() => no_copy };
 
