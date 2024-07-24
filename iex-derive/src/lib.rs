@@ -6,7 +6,7 @@ use syn::{
     spanned::Spanned,
     visit_mut::{visit_expr_mut, VisitMut},
     Expr, ExprClosure, ExprMethodCall, ExprTry, Ident, ImplItemFn, ItemFn, Lifetime, ReturnType,
-    Signature, TraitItemFn, Type,
+    Signature, Stmt, TraitItemFn, Type,
 };
 
 #[derive(FromMeta)]
@@ -382,6 +382,11 @@ fn transform_closure(captures: Vec<Lifetime>, input: ExprClosure) -> proc_macro:
     if let Err(err) = replace_try.errors.finish() {
         return err.write_errors().into();
     }
+    // Workaround false positive "useless { .. } around return value" warning.
+    let closure_body = match *closure_body {
+        Expr::Block(block) if block.attrs.is_empty() && block.label.is_none() => block.block.stmts,
+        expr => vec![Stmt::Expr(expr, None)],
+    };
 
     let no_copy: Ident = parse_quote_spanned! { Span::mixed_site() => no_copy };
     let closure_ident: Ident = parse_quote_spanned! { Span::mixed_site() => closure };
@@ -397,7 +402,7 @@ fn transform_closure(captures: Vec<Lifetime>, input: ExprClosure) -> proc_macro:
                     (marker, ::core::mem::ManuallyDrop::new($e))._iex_forward()
                 };
             }
-            #closure_body
+            #(#closure_body)*
         }
     };
 
