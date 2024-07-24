@@ -394,7 +394,7 @@ fn transform_closure(captures: Vec<Lifetime>, input: ExprClosure) -> proc_macro:
     let mut internal_closure: ExprClosure = parse_quote_spanned! {
         Span::mixed_site() =>
         #constness #asyncness
-        move |marker: ::iex::imp::Marker<_>| {
+        move |marker: ::iex::imp::Marker<#error_type>| {
             let #no_copy = #no_copy; // Force FnOnce inference
             #[allow(unused_macros)]
             macro_rules! iex_try {
