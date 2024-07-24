@@ -348,6 +348,99 @@ fn transform_item_fn(captures: Vec<Lifetime>, input: ItemFn) -> proc_macro::Toke
     .into()
 }
 
+fn transform_closure(captures: Vec<Lifetime>, input: ExprClosure) -> proc_macro::TokenStream {
+    if !captures.is_empty() {
+        return quote! {
+            compile_error!("#[iex(captures = ..)] is useless on closures")
+        }
+        .into();
+    }
+
+    let input_span = input.span();
+
+    let output_type: Type;
+    let error_type: Type;
+    match input.output {
+        ReturnType::Default => {
+            output_type = parse_quote! { _ };
+            error_type = parse_quote! { _ };
+        }
+        ReturnType::Type(_, result_type) => {
+            output_type = parse_quote! { <#result_type as ::iex::Outcome>::Output };
+            error_type = parse_quote! { <#result_type as ::iex::Outcome>::Error };
+        }
+    }
+
+    let constness = input.constness;
+    let asyncness = input.asyncness;
+
+    let mut closure_body = input.body;
+    let mut replace_try = ReplaceTry {
+        errors: darling::Error::accumulator(),
+    };
+    replace_try.visit_expr_mut(&mut closure_body);
+    if let Err(err) = replace_try.errors.finish() {
+        return err.write_errors().into();
+    }
+
+    let no_copy: Ident = parse_quote_spanned! { Span::mixed_site() => no_copy };
+    let closure_ident: Ident = parse_quote_spanned! { Span::mixed_site() => closure };
+
+    let mut internal_closure: ExprClosure = parse_quote_spanned! {
+        Span::mixed_site() =>
+        #constness #asyncness
+        move |marker: ::iex::imp::Marker<_>| {
+            let #no_copy = #no_copy; // Force FnOnce inference
+            #[allow(unused_macros)]
+            macro_rules! iex_try {
+                ($e:expr) => {
+                    (marker, ::core::mem::ManuallyDrop::new($e))._iex_forward()
+                };
+            }
+            #closure_body
+        }
+    };
+
+    internal_closure.attrs = input
+        .attrs
+        .iter()
+        .filter(|attr| !attr.path().is_ident("inline"))
+        .cloned()
+        .collect();
+    internal_closure
+        .attrs
+        .insert(0, parse_quote! { #[inline(always)] });
+
+    let inline_attr = input
+        .attrs
+        .iter()
+        .find(|attr| attr.path().is_ident("inline"));
+    let wrapper_closure = ExprClosure {
+        attrs: vec![parse_quote! { #[inline(always)] }],
+        output: ReturnType::Default,
+        body: Box::new(parse_quote_spanned! {
+            // This span is required for dead code diagnostic
+            input_span =>
+            {
+                #[allow(unused_imports)]
+                use ::iex::imp::_IexForward;
+                let #no_copy = ::iex::imp::NoCopy; // Force FnOnce inference
+                // We need { .. } to support the #[inline] attribute on the closure
+                #[allow(unused_mut)]
+                let mut #closure_ident = { #internal_closure };
+                ::iex::imp::IexResult::<#output_type, #error_type, _>::new(
+                    #inline_attr move |marker| {
+                        ::iex::Outcome::get_value_or_panic(#closure_ident(marker), marker)
+                    },
+                )
+            }
+        }),
+        ..input
+    };
+
+    quote! { #wrapper_closure }.into()
+}
+
 #[proc_macro_attribute]
 pub fn iex(
     args: proc_macro::TokenStream,
@@ -372,6 +465,8 @@ pub fn iex(
 
     if let Ok(input) = parse(input.clone()) {
         transform_item_fn(captures, input)
+    } else if let Ok(input) = parse(input.clone()) {
+        transform_closure(captures, input)
     } else {
         transform_trait_item_fn(captures, parse_macro_input!(input as TraitItemFn))
     }
