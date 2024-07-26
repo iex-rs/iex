@@ -356,6 +356,8 @@
 /// ```
 pub use iex_derive::iex;
 
+pub use iex_derive::try_block;
+
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
 use std::mem::ManuallyDrop;

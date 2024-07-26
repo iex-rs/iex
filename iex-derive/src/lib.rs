@@ -1,11 +1,11 @@
 use darling::{ast::NestedMeta, FromAttributes, FromMeta};
 use proc_macro2::{Group, Span, TokenStream, TokenTree};
-use quote::quote;
+use quote::{quote, quote_spanned};
 use syn::{
     parse, parse_macro_input, parse_quote, parse_quote_spanned, parse_str,
     spanned::Spanned,
     visit_mut::{visit_expr_mut, VisitMut},
-    Expr, ExprClosure, ExprMethodCall, ExprTry, Ident, ImplItemFn, ItemFn, Lifetime, Macro,
+    Block, Expr, ExprClosure, ExprMethodCall, ExprTry, Ident, ImplItemFn, ItemFn, Lifetime, Macro,
     ReturnType, Signature, Stmt, TraitItemFn, Type,
 };
 
@@ -496,4 +496,41 @@ pub fn iex(
     } else {
         transform_trait_item_fn(captures, parse_macro_input!(input as TraitItemFn))
     }
+}
+
+#[proc_macro]
+pub fn try_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let mut body = parse_macro_input!(input with Block::parse_within);
+
+    let mut replace_try = ReplaceTry {
+        errors: darling::Error::accumulator(),
+    };
+    for stmt in &mut body {
+        replace_try.visit_stmt_mut(stmt);
+    }
+    if let Err(err) = replace_try.errors.finish() {
+        return err.write_errors().into();
+    }
+
+    quote_spanned! {
+        Span::mixed_site() => {
+            #[allow(unused_imports)]
+            use ::iex::imp::_IexForward;
+            let no_copy = ::iex::imp::NoCopy; // Force FnOnce inference
+            ::iex::imp::IexResult::new({
+                #[inline(always)]
+                move |marker: ::iex::imp::Marker<_>| {
+                    let no_copy = no_copy; // Force FnOnce inference
+                    #[allow(unused_macros)]
+                    macro_rules! iex_try {
+                        ($e:expr) => {
+                            (marker, ::core::mem::ManuallyDrop::new($e))._iex_forward()
+                        };
+                    }
+                    #(#body)*
+                }
+            })
+        }
+    }
+    .into()
 }
