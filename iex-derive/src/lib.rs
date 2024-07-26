@@ -1,12 +1,12 @@
 use darling::{ast::NestedMeta, FromAttributes, FromMeta};
-use proc_macro2::Span;
+use proc_macro2::{Group, Span, TokenStream, TokenTree};
 use quote::quote;
 use syn::{
     parse, parse_macro_input, parse_quote, parse_quote_spanned, parse_str,
     spanned::Spanned,
     visit_mut::{visit_expr_mut, VisitMut},
-    Expr, ExprClosure, ExprMethodCall, ExprTry, Ident, ImplItemFn, ItemFn, Lifetime, ReturnType,
-    Signature, Stmt, TraitItemFn, Type,
+    Expr, ExprClosure, ExprMethodCall, ExprTry, Ident, ImplItemFn, ItemFn, Lifetime, Macro,
+    ReturnType, Signature, Stmt, TraitItemFn, Type,
 };
 
 #[derive(FromMeta)]
@@ -29,6 +29,27 @@ impl VisitMut for ReplaceSelf {
         if node == "self" {
             *node = Ident::new("iex_self", Span::mixed_site());
         }
+    }
+    fn visit_macro_mut(&mut self, node: &mut Macro) {
+        // Best-effort
+        fn visit_token_stream(tokens: TokenStream) -> TokenStream {
+            tokens
+                .into_iter()
+                .map(|tree| match tree {
+                    TokenTree::Ident(ident) if ident == "self" => {
+                        TokenTree::Ident(Ident::new("iex_self", Span::mixed_site()))
+                    }
+                    TokenTree::Group(group) => {
+                        let mut new_group =
+                            Group::new(group.delimiter(), visit_token_stream(group.stream()));
+                        new_group.set_span(group.span());
+                        TokenTree::Group(new_group)
+                    }
+                    tree => tree,
+                })
+                .collect()
+        }
+        node.tokens = visit_token_stream(node.tokens.clone());
     }
     // Don't recurse into other functions
     fn visit_item_fn_mut(&mut self, _node: &mut ItemFn) {}
