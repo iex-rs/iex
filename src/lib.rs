@@ -530,6 +530,7 @@ impl<T, E> Outcome for Result<T, E> {
     fn get_value_or_panic(self, _marker: imp::Marker<E>) -> T {
         self.unwrap_or_else(|error| {
             EXCEPTION.with(|exception| unsafe { &mut *exception.get() }.write(error));
+            // This does not allocate, because IexPanic is a ZST.
             std::panic::resume_unwind(Box::new(IexPanic))
         })
     }
