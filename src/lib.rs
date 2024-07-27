@@ -44,30 +44,30 @@
 //!     <tbody>
 //!         <tr>
 //!             <td><a href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html"><code>Result</code></a></td>
-//!             <td align="center">296.2</td>
-//!             <td align="center">439.0</td>
-//!             <td align="center">392.4</td>
-//!             <td align="center">876.8</td>
-//!             <td align="center">274.8</td>
-//!             <td align="center">536.4</td>
+//!             <td align="center">282.4</td>
+//!             <td align="center">404.2</td>
+//!             <td align="center">363.8</td>
+//!             <td align="center">907.8</td>
+//!             <td align="center">301.2</td>
+//!             <td align="center">612.4</td>
 //!         </tr>
 //!         <tr>
 //!             <td><code>#[iex] Result</code></td>
-//!             <td align="center">294.8</td>
-//!             <td align="center">537.0</td>
-//!             <td align="center">400.6</td>
-//!             <td align="center">940.6</td>
-//!             <td align="center">303.8</td>
-//!             <td align="center">568.8</td>
+//!             <td align="center">282.4</td>
+//!             <td align="center">565.0</td>
+//!             <td align="center">439.4</td>
+//!             <td align="center">1025.4</td>
+//!             <td align="center">317.6</td>
+//!             <td align="center">657.8</td>
 //!         </tr>
 //!         <tr>
 //!             <td>Performance increase</td>
-//!             <td align="center">-0.5%</td>
-//!             <td align="center">+22%</td>
-//!             <td align="center">+2%</td>
+//!             <td align="center">0%</td>
+//!             <td align="center">+40%</td>
+//!             <td align="center">+21%</td>
+//!             <td align="center">+13%</td>
+//!             <td align="center">+5%</td>
 //!             <td align="center">+7%</td>
-//!             <td align="center">+11%</td>
-//!             <td align="center">+6%</td>
 //!         </tr>
 //!     </tbody>
 //! </table>
