@@ -160,7 +160,8 @@
 ///
 /// # `#[iex(shares = ..)]`
 ///
-/// This use is specific for [`map_err`](crate::Outcome::map_err) and is documented there.
+/// This use is specific for `map_err` and `inspect_err`. See the documentation for
+/// [`Outcome`](crate::Outcome::map_err) for more information.
 ///
 /// # Example
 ///

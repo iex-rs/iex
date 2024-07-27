@@ -57,7 +57,12 @@ impl VisitMut for ReplaceSelf {
     fn visit_trait_item_fn_mut(&mut self, _node: &mut TraitItemFn) {}
 }
 
-fn generate_map_err(outcome: &mut Expr, closure: &mut Expr, attrs: MapErrMacroArgs) -> Expr {
+fn generate_map_inspect_err(
+    outcome: &mut Expr,
+    closure: &mut Expr,
+    attrs: MapErrMacroArgs,
+    method: &Ident,
+) -> Expr {
     let shares_original = attrs.shares;
 
     let shares: Vec<_> = shares_original
@@ -73,12 +78,20 @@ fn generate_map_err(outcome: &mut Expr, closure: &mut Expr, attrs: MapErrMacroAr
         })
         .collect();
 
+    let body = if method == "map_err" {
+        quote_spanned! { Span::mixed_site() => (#closure)(err) }
+    } else if method == "inspect_err" {
+        quote_spanned! { Span::mixed_site() => { (#closure)(&err); err } }
+    } else {
+        unreachable!()
+    };
+
     parse_quote_spanned! {
         Span::mixed_site() => {
             let mut exception_mapper = ::iex::imp::ExceptionMapper::new(
                 marker,
                 (#(#shares_original,)*),
-                |(#(mut #shares,)*), err| (#closure)(err),
+                |(#(mut #shares,)*), err| #body,
             );
             let marker = exception_mapper.get_in_marker();
             let (#(#shares,)*) = exception_mapper.get_state();
@@ -90,7 +103,7 @@ fn generate_map_err(outcome: &mut Expr, closure: &mut Expr, attrs: MapErrMacroAr
     }
 }
 
-fn try_parse_map_err(expr: &mut Expr) -> darling::Result<Option<Expr>> {
+fn try_parse_map_inspect_err(expr: &mut Expr) -> darling::Result<Option<Expr>> {
     let Expr::MethodCall(ExprMethodCall {
         receiver: outcome,
         method,
@@ -101,7 +114,7 @@ fn try_parse_map_err(expr: &mut Expr) -> darling::Result<Option<Expr>> {
         return Ok(None);
     };
 
-    if method != "map_err" || args.len() != 1 {
+    if (method != "map_err" && method != "inspect_err") || args.len() != 1 {
         return Ok(None);
     }
 
@@ -116,7 +129,12 @@ fn try_parse_map_err(expr: &mut Expr) -> darling::Result<Option<Expr>> {
     }
 
     attrs.retain(|attr| !attr.path().is_ident("iex"));
-    Ok(Some(generate_map_err(outcome, &mut args[0], parsed_attrs)))
+    Ok(Some(generate_map_inspect_err(
+        outcome,
+        &mut args[0],
+        parsed_attrs,
+        method,
+    )))
 }
 
 struct ReplaceTry {
@@ -128,7 +146,7 @@ impl VisitMut for ReplaceTry {
         if let Expr::Try(ExprTry { expr, .. }) = node {
             *node = self
                 .errors
-                .handle_in(|| try_parse_map_err(expr))
+                .handle_in(|| try_parse_map_inspect_err(expr))
                 .unwrap_or(None)
                 .unwrap_or_else(|| {
                     parse_quote_spanned! {

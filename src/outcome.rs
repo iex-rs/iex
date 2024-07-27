@@ -5,6 +5,82 @@ pub trait Sealed {}
 /// Properties of a generalized result type.
 ///
 /// This unifies [`Result`] and `#[iex] Result`.
+///
+/// # Ownership
+///
+/// The semantics of ownership and capturing for `#[iex] Result` complicates the use of `map_err`
+/// and `inspect_err` in some cases. Notably, using `f(...).map_err(|e| ...)` requires that `f(...)`
+/// and `|e| ...` don't capture variables in incompatible ways:
+///
+/// ```compile_fail
+/// use iex::{iex, Outcome};
+///
+/// struct Struct;
+///
+/// impl Struct {
+///     #[iex]
+///     fn errors(&mut self) -> Result<(), i32> {
+///         Err(123)
+///     }
+///     fn error_mapper(&mut self, err: i32) -> i32 {
+///         err + 1
+///     }
+///     #[iex]
+///     fn calls(&mut self) -> Result<(), i32> {
+///         // closure requires unique access to `*self` but it is already borrowed
+///         self.errors().map_err(|err| self.error_mapper(err))
+///     }
+/// }
+/// ```
+///
+/// `#[iex]` provides a workaround for this particular usecase. The patterns
+/// `(..).map_err(#[iex(shares = ..)] ..)?` and similarly for `inspect_err` (only these patterns,
+/// the `?` is required) allows you to share variables between the fallible function and the error
+/// handler. A *mutable reference* to the variable will be visible to the fallible function, and the
+/// *value* of the variable will be visible to the error handler. This applies to `self` too:
+///
+/// ```
+/// use iex::{iex, Outcome};
+///
+/// struct Struct;
+///
+/// impl Struct {
+///     #[iex]
+///     fn errors(&mut self) -> Result<(), i32> {
+///         Err(123)
+///     }
+///     fn error_mapper(&mut self, err: i32) -> i32 {
+///         err + 1
+///     }
+///     #[iex]
+///     fn calls(&mut self) -> Result<(), i32> {
+///         Ok(self.errors().map_err(#[iex(shares = self)] |err| self.error_mapper(err))?)
+///     }
+/// }
+/// ```
+///
+/// In a more complicated case, you would have to resort to the less efficient
+/// [`into_result`](Self::into_result):
+///
+/// ```
+/// use iex::{iex, Outcome};
+///
+/// struct Struct;
+///
+/// impl Struct {
+///     #[iex]
+///     fn errors(&mut self) -> Result<(), i32> {
+///         Err(123)
+///     }
+///     fn error_mapper(&mut self, err: i32) -> i32 {
+///         err + 1
+///     }
+///     #[iex]
+///     fn calls(&mut self) -> Result<(), i32> {
+///         self.errors().into_result().map_err(|err| self.error_mapper(err))
+///     }
+/// }
+/// ```
 #[must_use]
 pub trait Outcome: Sealed {
     /// The type of the success value.
@@ -16,85 +92,19 @@ pub trait Outcome: Sealed {
     #[doc(hidden)]
     fn get_value_or_panic(self, marker: Marker<Self::Error>) -> Self::Output;
 
+    /// Calls a function with a reference to the contained value if `Err`.
+    ///
+    /// Returns the original result.
+    ///
+    /// This is a generalized and more efficient version of [`Result::inspect_err`].
+    fn inspect_err(
+        self,
+        f: impl FnOnce(&Self::Error),
+    ) -> impl Outcome<Output = Self::Output, Error = Self::Error>;
+
     /// Apply a function to the `Err` value, leaving `Ok` untouched.
     ///
     /// This is a generalized and more efficient version of [`Result::map_err`].
-    ///
-    /// # Ownership
-    ///
-    /// The semantics of ownership and capturing for `#[iex] Result` complicates the use of
-    /// `map_err` in some cases. Notably, using `f(...).map_err(|e| ...)` requires that `f(...)`
-    /// and `|e| ...` don't capture variables in incompatible ways:
-    ///
-    /// ```compile_fail
-    /// use iex::{iex, Outcome};
-    ///
-    /// struct Struct;
-    ///
-    /// impl Struct {
-    ///     #[iex]
-    ///     fn errors(&mut self) -> Result<(), i32> {
-    ///         Err(123)
-    ///     }
-    ///     fn error_mapper(&mut self, err: i32) -> i32 {
-    ///         err + 1
-    ///     }
-    ///     #[iex]
-    ///     fn calls(&mut self) -> Result<(), i32> {
-    ///         // closure requires unique access to `*self` but it is already borrowed
-    ///         self.errors().map_err(|err| self.error_mapper(err))
-    ///     }
-    /// }
-    /// ```
-    ///
-    /// `#[iex]` provides a workaround for this particular usecase. The pattern
-    /// `(..).map_err(#[iex(shares = ..)] ..)?` (and only this pattern, the `?` is required) allows
-    /// you to share variables between the fallible function and the error handler. A *mutable
-    /// reference* to the variable will be visible to the fallible function, and the *value* of the
-    /// variable will be visible to the error handler. This applies to `self` too:
-    ///
-    /// ```
-    /// use iex::{iex, Outcome};
-    ///
-    /// struct Struct;
-    ///
-    /// impl Struct {
-    ///     #[iex]
-    ///     fn errors(&mut self) -> Result<(), i32> {
-    ///         Err(123)
-    ///     }
-    ///     fn error_mapper(&mut self, err: i32) -> i32 {
-    ///         err + 1
-    ///     }
-    ///     #[iex]
-    ///     fn calls(&mut self) -> Result<(), i32> {
-    ///         Ok(self.errors().map_err(#[iex(shares = self)] |err| self.error_mapper(err))?)
-    ///     }
-    /// }
-    /// ```
-    ///
-    /// In a more complicated case, you would have to resort to the less efficient
-    /// [`into_result`](Self::into_result):
-    ///
-    /// ```
-    /// use iex::{iex, Outcome};
-    ///
-    /// struct Struct;
-    ///
-    /// impl Struct {
-    ///     #[iex]
-    ///     fn errors(&mut self) -> Result<(), i32> {
-    ///         Err(123)
-    ///     }
-    ///     fn error_mapper(&mut self, err: i32) -> i32 {
-    ///         err + 1
-    ///     }
-    ///     #[iex]
-    ///     fn calls(&mut self) -> Result<(), i32> {
-    ///         self.errors().into_result().map_err(|err| self.error_mapper(err))
-    ///     }
-    /// }
-    /// ```
     ///
     /// # Example
     ///
@@ -159,10 +169,7 @@ pub trait Outcome: Sealed {
     /// # #[iex] fn f() -> Result<(), ()> { Ok(()) }
     /// # #[iex] fn g() -> Result<(), ()> { Ok(()) }
     /// # #[iex] fn fg() -> Result<(), ()> {
-    /// let value = f().map_err(|err| {
-    ///     let _ = g().into_result();
-    ///     err
-    /// })?;
+    /// let value = f().inspect_err(|_| drop(g().into_result()))?;
     /// g()?;
     /// Ok(value)
     /// # }

@@ -115,21 +115,19 @@
 //! # All you need to know
 //!
 //! Functions marked [`#[iex]`](macro@iex) are supposed to return a [`Result<T, E>`] in their
-//! definition. The macro rewrites them to return an opaque type `#[iex] Result<T, E>` instead. Upon
-//! calling such a function, there are three things you can _immediately_ do to its output:
-//! - Either you can propagate it with `?` if it's called from another [`#[iex]`](macro@iex)
-//!   function,
-//! - Or you can [`.map_err(..)?`](Outcome::map_err) it if you need to replace the error and the
-//!   implicit [`Into`]-conversion does not suffice,
-//! - Or you must cast it to a [`Result`] via [`.into_result()`](Outcome::into_result). This is the
-//!   only option if you need to handle the error.
+//! definition. The macro rewrites them to return an opaque type `#[iex] Result<T, E>` instead. This
+//! type implements [`Outcome`], so you can call methods like [`map_err`](Outcome::map_err), but
+//! other than that, you must immediately propagate the error via `?`.
 //!
-//! Doing anything else to the return value, e.g. storing it in a variable and reusing later does
-//! not cause UB, but will not work the way you think. If you want to swallow the error, use
+//! Alternatively, you can cast it to a [`Result`] via [`.into_result()`](Outcome::into_result).
+//! This is the only way to avoid immediate propagation.
+//!
+//! Doing anything else to the return value, e.g. storing it in a variable and using it later will
+//! not cause UB, but will not work the way you think either. If you want to swallow the error, use
 //! `let _ = func().into_result();` instead.
 //!
 //! Directly returning an `#[iex] Result` (obtained from a function call) from another
-//! [`#[iex]`](macro@iex) function works, provided that it's the only `return` statement in the
+//! [`#[iex]`](macro@iex) function also works, provided that it's the only `return` statement in the
 //! function. Use `Ok(..?)` if there are multiple returns.
 //!
 //! [`#[iex]`](macro@iex) works on methods. If applied to a function in an `impl Trait for Type`
@@ -178,6 +176,10 @@ impl<T, E> Outcome for Result<T, E> {
             // This does not allocate, because IexPanic is a ZST.
             std::panic::resume_unwind(Box::new(IexPanic))
         })
+    }
+
+    fn inspect_err(self, f: impl FnOnce(&Self::Error)) -> impl Outcome<Output = T, Error = E> {
+        Result::inspect_err(self, f)
     }
 
     fn map_err<F, Map: FnOnce(Self::Error) -> F>(
@@ -313,6 +315,17 @@ pub mod imp {
 
         fn get_value_or_panic(self, marker: Marker<E>) -> T {
             self.0(marker)
+        }
+
+        fn inspect_err(self, f: impl FnOnce(&Self::Error)) -> impl Outcome<Output = T, Error = E> {
+            // NB: It is impossible to implement inspect_err without writeback that map_err
+            // performs. Indeed, if `f` calls an #[iex] function that returns an error, that error
+            // is saved to EXCEPTION. It is necessary to override it back with err before returning
+            // from `inspect_err(..).get_value_or_panic()`.
+            self.map_err(|err| {
+                f(&err);
+                err
+            })
         }
 
         fn map_err<F, Map: FnOnce(Self::Error) -> F>(
