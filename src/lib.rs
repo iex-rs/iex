@@ -141,8 +141,6 @@ mod macros;
 pub use macros::{iex, try_block};
 
 use std::cell::UnsafeCell;
-use std::marker::PhantomData;
-use std::mem::ManuallyDrop;
 
 mod exception;
 use exception::Exception;
@@ -159,6 +157,8 @@ mod iex_result;
 mod result;
 
 mod exception_mapper;
+mod forward;
+mod marker;
 
 pub mod example;
 
@@ -171,67 +171,11 @@ thread_local! {
 #[doc(hidden)]
 pub mod imp {
     use super::*;
-
-    pub use fix_hidden_lifetime_bug;
-
-    pub trait _IexForward {
-        type Output;
-        fn _iex_forward(self) -> Self::Output;
-    }
-
-    pub struct Marker<E>(PhantomData<E>);
-
-    impl<E> Marker<E> {
-        pub(crate) unsafe fn new() -> Self {
-            Self(PhantomData)
-        }
-    }
-
-    impl<E, R: Outcome> _IexForward for &mut (Marker<E>, ManuallyDrop<R>)
-    where
-        R::Error: Into<E>,
-    {
-        type Output = R::Output;
-        fn _iex_forward(self) -> R::Output {
-            let outcome = unsafe { ManuallyDrop::take(&mut self.1) };
-            if typeid::of::<E>() == typeid::of::<R::Error>() {
-                // SAFETY: If we enter this conditional, E and R::Error differ only in lifetimes.
-                // Lifetimes are erased in runtime, so `impl Into<E> for R::Error` has the same
-                // implementation as `impl Into<T> for T` for some `T`, and that blanket
-                // implementation is a no-op. Therefore, no conversion needs to happen.
-                outcome.get_value_or_panic(unsafe { Marker::new() })
-            } else {
-                let exception_mapper =
-                    ExceptionMapper::new(self.0, (), |_, err| Into::<E>::into(err));
-                let output = outcome.get_value_or_panic(exception_mapper.get_in_marker());
-                exception_mapper.swallow();
-                output
-            }
-        }
-    }
-
-    // Autoref specialization for conversion-less forwarding. This *must* be callable without taking
-    // a (mutable) reference in user code, so that the LLVM optimizer has less work to do. This
-    // actually matters for serde.
-    impl<R: Outcome> _IexForward for (Marker<R::Error>, ManuallyDrop<R>) {
-        type Output = R::Output;
-        fn _iex_forward(self) -> R::Output {
-            ManuallyDrop::into_inner(self.1).get_value_or_panic(self.0)
-        }
-    }
-
-    impl<E> Clone for Marker<E> {
-        fn clone(&self) -> Self {
-            *self
-        }
-    }
-
-    impl<E> Copy for Marker<E> {}
-
     pub use exception_mapper::ExceptionMapper;
-
+    pub use fix_hidden_lifetime_bug;
+    pub use forward::_IexForward;
     pub use iex_result::IexResult;
-
+    pub use marker::Marker;
     pub struct NoCopy;
 }
 
