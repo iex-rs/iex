@@ -20,7 +20,8 @@ fn drop_apit(_x: impl Send) -> Result<(), ()> {
     Ok(())
 }
 
-fn main() {
+#[test]
+fn generics() {
     assert_eq!(identity(123).into_result(), Ok(123));
     assert_eq!(default().into_result(), Ok(0));
     assert_eq!(drop(123).into_result(), Ok(()));

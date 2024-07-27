@@ -23,7 +23,8 @@ fn elided_input_lifetime_struct(_a: A<'_>) -> Result<(), ()> {
     Ok(())
 }
 
-fn main() {
+#[test]
+fn lifetimes() {
     assert_eq!(input_lifetimes(&1, &2).into_result(), Ok(()));
     assert_eq!(output_lifetime().into_result(), Err(()));
     assert_eq!(elided_input_lifetimes(&1, &2).into_result(), Ok(()));
