@@ -1,4 +1,4 @@
-use iex::iex;
+use iex::{iex, Outcome};
 
 trait FallibleSum {
     type Error;
@@ -14,8 +14,17 @@ impl FallibleSum for i32 {
 
     #[iex]
     fn add(self, other: Self) -> Result<Self, Self::Error> {
-        self.checked_add(other).ok_or("Stack Overflow")
+        self.checked_add(other).ok_or("Integer overflow")
     }
+}
+
+#[test]
+fn call_via_trait() {
+    assert_eq!(FallibleSum::add(1, 2).into_result(), Ok(3));
+    assert_eq!(
+        FallibleSum::add(1, i32::MAX).into_result(),
+        Err("Integer overflow")
+    );
 }
 
 trait SayHello {
@@ -42,4 +51,11 @@ impl SayHello for &str {
     }
 }
 
-fn main() {}
+#[test]
+fn refined() {
+    assert_eq!(
+        "test".to_string().say_hello().into_result().unwrap(),
+        "test",
+    );
+    assert_eq!("test".say_hello().into_result().unwrap(), "test");
+}
