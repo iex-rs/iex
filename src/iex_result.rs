@@ -6,6 +6,17 @@ use crate::{
 use std::marker::PhantomData;
 use std::panic::AssertUnwindSafe;
 
+pub(crate) trait CallWithMarker<T, E> {
+    fn call_with_marker(self, marker: Marker<E>) -> T;
+}
+
+impl<T, E, Func: FnOnce(Marker<E>) -> T> CallWithMarker<T, E> for Func {
+    #[inline(always)]
+    fn call_with_marker(self, marker: Marker<E>) -> T {
+        self(marker)
+    }
+}
+
 pub struct IexResult<T, E, Func>(Func, PhantomData<fn() -> (T, E)>);
 
 impl<T, E, Func> IexResult<T, E, Func> {
@@ -16,12 +27,12 @@ impl<T, E, Func> IexResult<T, E, Func> {
 
 impl<T, E, Func> Sealed for IexResult<T, E, Func> {}
 
-impl<T, E, Func: FnOnce(Marker<E>) -> T> Outcome for IexResult<T, E, Func> {
+impl<T, E, Func: CallWithMarker<T, E>> Outcome for IexResult<T, E, Func> {
     type Output = T;
     type Error = E;
 
     fn get_value_or_panic(self, marker: Marker<E>) -> T {
-        self.0(marker)
+        self.0.call_with_marker(marker)
     }
 
     #[cfg(doc)]
@@ -69,7 +80,10 @@ impl<T, E, Func: FnOnce(Marker<E>) -> T> Outcome for IexResult<T, E, Func> {
     }
 
     fn into_result(self) -> Result<T, E> {
-        std::panic::catch_unwind(AssertUnwindSafe(|| self.0(unsafe { Marker::new() }))).map_err(
+        std::panic::catch_unwind(AssertUnwindSafe(|| {
+            self.0.call_with_marker(unsafe { Marker::new() })
+        }))
+        .map_err(
             #[cold]
             |payload| {
                 if !payload.is::<IexPanic>() {

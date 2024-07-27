@@ -21,3 +21,6 @@ anyhow = "1"
 
 [features]
 anyhow = ["dep:anyhow"]
+
+[package.metadata.docs.rs]
+all-features = true

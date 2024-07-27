@@ -82,7 +82,7 @@ pub trait Sealed {}
 /// }
 /// ```
 #[must_use]
-pub trait Outcome: Sealed {
+pub trait Outcome: Sealed + crate::Context<Self::Output, Self::Error> {
     /// The type of the success value.
     type Output;
 

@@ -153,6 +153,15 @@ mod anyhow_compat;
 #[cfg(feature = "anyhow")]
 pub use anyhow_compat::Context;
 
+#[cfg(not(feature = "anyhow"))]
+pub trait Context<T, E> {}
+#[cfg(not(feature = "anyhow"))]
+impl<T, E> Context<T, E> for Result<T, E> {}
+#[cfg(not(feature = "anyhow"))]
+impl<T, E, Func: iex_result::CallWithMarker<T, E>> Context<T, E> for imp::IexResult<T, E, Func> {}
+#[cfg(not(feature = "anyhow"))]
+impl<T> Context<T, std::convert::Infallible> for Option<T> {}
+
 mod iex_result;
 mod result;
 
