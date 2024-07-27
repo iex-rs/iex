@@ -220,4 +220,31 @@
 /// ```
 pub use iex_derive::iex;
 
+/// Try block.
+///
+/// This is an implementation of the [nightly `try` blocks][1] for [`#[iex]`](macro@crate::iex).
+///
+/// # Example
+///
+/// ```
+/// use iex::{iex, Outcome, try_block};
+///
+/// #[iex]
+/// fn fallible() -> Result<i32, ()> { Ok(1) }
+///
+/// #[iex]
+/// fn example() -> Result<(), ()> {
+///     // Many operations...
+///     let value = try_block! {
+///			fallible()?;
+///			fallible()?;
+///         2
+///     }.inspect_err(|e| println!("{e:?}"))?;  // Common error handler
+///		assert_eq!(value, 2);
+///     // Many other operations...
+///		Ok(())
+/// }
+/// ```
+///
+/// [1]: https://doc.rust-lang.org/nightly/unstable-book/language-features/try-blocks.html
 pub use iex_derive::try_block;
