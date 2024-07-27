@@ -299,6 +299,10 @@
 ///
 /// For a rendered example, see [`example`].
 ///
+/// # `#[iex(shares = ..)]`
+///
+/// This use is specific for [`Outcome::map_err`] and is documented there.
+///
 /// # Example
 ///
 /// ```
