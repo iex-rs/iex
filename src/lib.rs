@@ -143,7 +143,6 @@ pub use macros::{iex, try_block};
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
 use std::mem::ManuallyDrop;
-use std::panic::AssertUnwindSafe;
 
 mod exception;
 use exception::Exception;
@@ -156,63 +155,15 @@ mod anyhow_compat;
 #[cfg(feature = "anyhow")]
 pub use anyhow_compat::AnyhowContext;
 
+mod iex_result;
+mod result;
+
 pub mod example;
 
 struct IexPanic;
 
 thread_local! {
     static EXCEPTION: UnsafeCell<Exception> = const { UnsafeCell::new(Exception::new()) };
-}
-
-impl<T, E> outcome::Sealed for Result<T, E> {}
-impl<T, E> Outcome for Result<T, E> {
-    type Output = T;
-
-    type Error = E;
-
-    fn get_value_or_panic(self, _marker: imp::Marker<E>) -> T {
-        self.unwrap_or_else(|error| {
-            EXCEPTION.with(|exception| unsafe { &mut *exception.get() }.write(error));
-            // This does not allocate, because IexPanic is a ZST.
-            std::panic::resume_unwind(Box::new(IexPanic))
-        })
-    }
-
-    #[cfg(doc)]
-    #[iex]
-    fn inspect_err<F>(self, f: F) -> Result<T, E>
-    where
-        F: FnOnce(&Self::Error),
-    {
-    }
-
-    #[cfg(not(doc))]
-    fn inspect_err<F>(self, f: F) -> impl Outcome<Output = T, Error = E>
-    where
-        F: FnOnce(&Self::Error),
-    {
-        Result::inspect_err(self, f)
-    }
-
-    #[cfg(doc)]
-    #[iex]
-    fn map_err<F, O>(self, op: O) -> Result<T, F>
-    where
-        O: FnOnce(E) -> F,
-    {
-    }
-
-    #[cfg(not(doc))]
-    fn map_err<F, O>(self, op: O) -> impl Outcome<Output = Self::Output, Error = F>
-    where
-        O: FnOnce(E) -> F,
-    {
-        Result::map_err(self, op)
-    }
-
-    fn into_result(self) -> Self {
-        self
-    }
 }
 
 #[doc(hidden)]
@@ -229,7 +180,7 @@ pub mod imp {
     pub struct Marker<E>(PhantomData<E>);
 
     impl<E> Marker<E> {
-        unsafe fn new() -> Self {
+        pub(crate) unsafe fn new() -> Self {
             Self(PhantomData)
         }
     }
@@ -321,87 +272,7 @@ pub mod imp {
         }
     }
 
-    pub struct IexResult<T, E, Func>(Func, PhantomData<fn() -> (T, E)>);
-
-    impl<T, E, Func> IexResult<T, E, Func> {
-        pub fn new(f: Func) -> Self {
-            Self(f, PhantomData)
-        }
-    }
-
-    impl<T, E, Func> outcome::Sealed for IexResult<T, E, Func> {}
-    impl<T, E, Func: FnOnce(Marker<E>) -> T> Outcome for IexResult<T, E, Func> {
-        type Output = T;
-        type Error = E;
-
-        fn get_value_or_panic(self, marker: Marker<E>) -> T {
-            self.0(marker)
-        }
-
-        #[cfg(doc)]
-        #[iex]
-        fn inspect_err<F>(self, f: F) -> Result<T, E>
-        where
-            F: FnOnce(&Self::Error),
-        {
-        }
-
-        #[cfg(not(doc))]
-        fn inspect_err<F>(self, f: F) -> impl Outcome<Output = T, Error = E>
-        where
-            F: FnOnce(&Self::Error),
-        {
-            // NB: It is impossible to implement inspect_err without writeback that map_err
-            // performs. Indeed, if `f` calls an #[iex] function that returns an error, that error
-            // is saved to EXCEPTION. It is necessary to override it back with err before returning
-            // from `inspect_err(..).get_value_or_panic()`.
-            self.map_err(|err| {
-                f(&err);
-                err
-            })
-        }
-
-        #[cfg(doc)]
-        #[iex]
-        fn map_err<F, O>(self, op: O) -> Result<T, F>
-        where
-            O: FnOnce(E) -> F,
-        {
-        }
-
-        #[cfg(not(doc))]
-        fn map_err<F, O>(self, op: O) -> impl Outcome<Output = Self::Output, Error = F>
-        where
-            O: FnOnce(E) -> F,
-        {
-            IexResult(
-                |marker| {
-                    let exception_mapper = ExceptionMapper::new(marker, (), |(), err| op(err));
-                    let value = self.get_value_or_panic(exception_mapper.get_in_marker());
-                    exception_mapper.swallow();
-                    value
-                },
-                PhantomData,
-            )
-        }
-
-        fn into_result(self) -> Result<T, E> {
-            std::panic::catch_unwind(AssertUnwindSafe(|| self.0(unsafe { Marker::new() }))).map_err(
-                #[cold]
-                |payload| {
-                    if !payload.is::<IexPanic>() {
-                        std::panic::resume_unwind(payload);
-                    }
-                    EXCEPTION.with(|exception| unsafe {
-                        let exception = &mut *exception.get();
-                        let error = exception.read_unchecked();
-                        exception.clear();
-                        error
-                    })
-                },
-            )
-        }
-    }
+    pub use iex_result::IexResult;
 
     pub struct NoCopy;
 }
