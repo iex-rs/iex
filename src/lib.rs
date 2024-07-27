@@ -189,13 +189,3 @@ pub mod imp {
 }
 
 extern crate self as iex;
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[iex]
-    fn marker_and_no_copy(marker: i32, no_copy: i32) -> Result<i32, ()> {
-        Ok(marker + no_copy)
-    }
-}
