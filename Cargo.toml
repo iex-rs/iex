@@ -17,7 +17,6 @@ iex-derive = { path = "iex-derive", version = "0.1.1" }
 typeid = "1.0.0"
 
 [dev-dependencies]
-anyhow = "1"
 criterion = "0.3"
 
 [features]
