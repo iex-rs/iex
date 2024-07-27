@@ -522,6 +522,38 @@ pub trait Outcome: sealed::Sealed {
     ///
     /// The [`Result`] can then be matched on, returned from a function that doesn't use
     /// [`#[iex]`](macro@iex), etc.
+    ///
+    /// This method is typically slow on complex code. Avoid it in the hot path if you can. For
+    /// example,
+    ///
+    /// ```rust
+    /// # use iex::{iex, Outcome};
+    /// # #[iex] fn f() -> Result<(), ()> { Ok(()) }
+    /// # #[iex] fn g() -> Result<(), ()> { Ok(()) }
+    /// # #[iex] fn fg() -> Result<(), ()> {
+    /// let result = f().into_result();
+    /// g()?;
+    /// result
+    /// # }
+    /// ```
+    ///
+    /// is perhaps better written as
+    ///
+    /// ```rust
+    /// # use iex::{iex, Outcome};
+    /// # #[iex] fn f() -> Result<(), ()> { Ok(()) }
+    /// # #[iex] fn g() -> Result<(), ()> { Ok(()) }
+    /// # #[iex] fn fg() -> Result<(), ()> {
+    /// let value = f().map_err(|err| {
+    ///     let _ = g().into_result();
+    ///     err
+    /// })?;
+    /// g()?;
+    /// Ok(value)
+    /// # }
+    /// ```
+    ///
+    /// despite repetitions.
     fn into_result(self) -> Result<Self::Output, Self::Error>;
 }
 
