@@ -236,13 +236,13 @@ pub use iex_derive::iex;
 /// fn example() -> Result<(), ()> {
 ///     // Many operations...
 ///     let value = try_block! {
-///			fallible()?;
-///			fallible()?;
+///         fallible()?;
+///         fallible()?;
 ///         2
 ///     }.inspect_err(|e| println!("{e:?}"))?;  // Common error handler
-///		assert_eq!(value, 2);
+///     assert_eq!(value, 2);
 ///     // Many other operations...
-///		Ok(())
+///     Ok(())
 /// }
 /// ```
 ///
