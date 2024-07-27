@@ -1,5 +1,4 @@
 use crate::{
-    iex,
     iex_result::CallWithMarker,
     imp::{IexResult, Marker},
     Outcome,
