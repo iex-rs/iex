@@ -1,5 +1,6 @@
 use crate::{iex, Outcome};
 use anyhow::Error;
+use std::convert::Infallible;
 use std::fmt::Display;
 
 /// [`anyhow`](https://docs.rs/anyhow/latest/anyhow/) compatibility layer.
@@ -10,7 +11,7 @@ use std::fmt::Display;
 ///
 /// ```rust
 /// use anyhow::{bail, Result};
-/// use iex::{iex, AnyhowContext};
+/// use iex::{iex, Context};
 ///
 /// #[iex]
 /// fn returns_anyhow_error() -> Result<()> {
@@ -22,29 +23,32 @@ use std::fmt::Display;
 ///     returns_anyhow_error().context("In adds_context_to_anyhow_error()")
 /// }
 /// ```
-pub trait AnyhowContext: Outcome<Error = Error> {
+pub trait Context<T, E> {
     /// Wrap the error value with additional context.
     #[iex]
-    fn context<C>(self, context: C) -> Result<Self::Output, Error>
+    fn context<C>(self, context: C) -> Result<T, Error>
     where
         C: Display + Send + Sync + 'static;
 
     /// Wrap the error value with additional context that is evaluated lazily only once an error
     /// does occur.
     #[iex]
-    fn with_context<C, F>(self, f: F) -> Result<Self::Output, Error>
+    fn with_context<C, F>(self, f: F) -> Result<T, Error>
     where
         C: Display + Send + Sync + 'static,
         F: FnOnce() -> C;
 }
 
-impl<R: Outcome<Error = Error>> AnyhowContext for R {
+impl<R: Outcome> Context<R::Output, R::Error> for R
+where
+    Result<(), R::Error>: anyhow::Context<(), R::Error>,
+{
     #[iex]
     fn context<C>(self, context: C) -> Result<R::Output, Error>
     where
         C: Display + Send + Sync + 'static,
     {
-        self.map_err(|e| e.context(context))
+        self.map_err(|e| anyhow::Context::context(Err(e), context).unwrap_err())
     }
 
     #[iex]
@@ -53,6 +57,25 @@ impl<R: Outcome<Error = Error>> AnyhowContext for R {
         C: Display + Send + Sync + 'static,
         F: FnOnce() -> C,
     {
-        self.map_err(|e| e.context(f()))
+        self.map_err(|e| anyhow::Context::with_context(Err(e), f).unwrap_err())
+    }
+}
+
+impl<T> Context<T, Infallible> for Option<T> {
+    #[iex]
+    fn context<C>(self, context: C) -> Result<T, Error>
+    where
+        C: Display + Send + Sync + 'static,
+    {
+        anyhow::Context::context(self, context)
+    }
+
+    #[iex]
+    fn with_context<C, F>(self, f: F) -> Result<T, Error>
+    where
+        C: Display + Send + Sync + 'static,
+        F: FnOnce() -> C,
+    {
+        anyhow::Context::with_context(self, f)
     }
 }

@@ -1,5 +1,5 @@
 use anyhow::{bail, Result};
-use iex::{iex, AnyhowContext, Outcome};
+use iex::{iex, Context, Outcome};
 
 #[iex]
 fn returns_anyhow_error() -> Result<()> {

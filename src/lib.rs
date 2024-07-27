@@ -151,7 +151,7 @@ pub use outcome::Outcome;
 #[cfg(feature = "anyhow")]
 mod anyhow_compat;
 #[cfg(feature = "anyhow")]
-pub use anyhow_compat::AnyhowContext;
+pub use anyhow_compat::Context;
 
 mod iex_result;
 mod result;
