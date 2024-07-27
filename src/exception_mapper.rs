@@ -25,10 +25,11 @@ impl<S, T, U, F: FnOnce(S, T) -> U> ExceptionMapper<S, T, U, F> {
         &mut self.state
     }
 
-    pub fn swallow(mut self) {
-        unsafe { ManuallyDrop::drop(&mut self.state) };
-        unsafe { ManuallyDrop::drop(&mut self.f) };
-        std::mem::forget(self);
+    pub fn swallow(self) {
+        let mut exception_mapper = ManuallyDrop::new(self);
+        // take instead of drop so that if the destructor of 'state' panics, 'f' is still dropped
+        let _state = unsafe { ManuallyDrop::take(&mut exception_mapper.state) };
+        let _f = unsafe { ManuallyDrop::take(&mut exception_mapper.f) };
     }
 }
 
