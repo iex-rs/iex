@@ -18,6 +18,7 @@ fn example() -> Result<u32, &'static str> {
     checked_divide(246, 2)
 }
 
-fn main() {
+#[test]
+fn closure() {
     assert_eq!(example().into_result(), Ok(123));
 }
