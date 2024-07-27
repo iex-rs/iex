@@ -178,15 +178,36 @@ impl<T, E> Outcome for Result<T, E> {
         })
     }
 
-    fn inspect_err(self, f: impl FnOnce(&Self::Error)) -> impl Outcome<Output = T, Error = E> {
+    #[cfg(doc)]
+    #[iex]
+    fn inspect_err<F>(self, f: F) -> Result<T, E>
+    where
+        F: FnOnce(&Self::Error),
+    {
+    }
+
+    #[cfg(not(doc))]
+    fn inspect_err<F>(self, f: F) -> impl Outcome<Output = T, Error = E>
+    where
+        F: FnOnce(&Self::Error),
+    {
         Result::inspect_err(self, f)
     }
 
-    fn map_err<F, Map: FnOnce(Self::Error) -> F>(
-        self,
-        map: Map,
-    ) -> impl Outcome<Output = Self::Output, Error = F> {
-        Result::map_err(self, map)
+    #[cfg(doc)]
+    #[iex]
+    fn map_err<F, O>(self, op: O) -> Result<T, F>
+    where
+        O: FnOnce(E) -> F,
+    {
+    }
+
+    #[cfg(not(doc))]
+    fn map_err<F, O>(self, op: O) -> impl Outcome<Output = Self::Output, Error = F>
+    where
+        O: FnOnce(E) -> F,
+    {
+        Result::map_err(self, op)
     }
 
     fn into_result(self) -> Self {
@@ -317,7 +338,19 @@ pub mod imp {
             self.0(marker)
         }
 
-        fn inspect_err(self, f: impl FnOnce(&Self::Error)) -> impl Outcome<Output = T, Error = E> {
+        #[cfg(doc)]
+        #[iex]
+        fn inspect_err<F>(self, f: F) -> Result<T, E>
+        where
+            F: FnOnce(&Self::Error),
+        {
+        }
+
+        #[cfg(not(doc))]
+        fn inspect_err<F>(self, f: F) -> impl Outcome<Output = T, Error = E>
+        where
+            F: FnOnce(&Self::Error),
+        {
             // NB: It is impossible to implement inspect_err without writeback that map_err
             // performs. Indeed, if `f` calls an #[iex] function that returns an error, that error
             // is saved to EXCEPTION. It is necessary to override it back with err before returning
@@ -328,13 +361,22 @@ pub mod imp {
             })
         }
 
-        fn map_err<F, Map: FnOnce(Self::Error) -> F>(
-            self,
-            map: Map,
-        ) -> impl Outcome<Output = Self::Output, Error = F> {
+        #[cfg(doc)]
+        #[iex]
+        fn map_err<F, O>(self, op: O) -> Result<T, F>
+        where
+            O: FnOnce(E) -> F,
+        {
+        }
+
+        #[cfg(not(doc))]
+        fn map_err<F, O>(self, op: O) -> impl Outcome<Output = Self::Output, Error = F>
+        where
+            O: FnOnce(E) -> F,
+        {
             IexResult(
                 |marker| {
-                    let exception_mapper = ExceptionMapper::new(marker, (), |(), err| map(err));
+                    let exception_mapper = ExceptionMapper::new(marker, (), |(), err| op(err));
                     let value = self.get_value_or_panic(exception_mapper.get_in_marker());
                     exception_mapper.swallow();
                     value

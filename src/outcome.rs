@@ -1,4 +1,4 @@
-use crate::imp::Marker;
+use crate::{iex, imp::Marker};
 
 pub trait Sealed {}
 
@@ -97,10 +97,10 @@ pub trait Outcome: Sealed {
     /// Returns the original result.
     ///
     /// This is a generalized and more efficient version of [`Result::inspect_err`].
-    fn inspect_err(
-        self,
-        f: impl FnOnce(&Self::Error),
-    ) -> impl Outcome<Output = Self::Output, Error = Self::Error>;
+    #[iex]
+    fn inspect_err<F>(self, f: F) -> Result<Self::Output, Self::Error>
+    where
+        F: FnOnce(&Self::Error);
 
     /// Apply a function to the `Err` value, leaving `Ok` untouched.
     ///
@@ -138,10 +138,10 @@ pub trait Outcome: Sealed {
     ///     Err(MyError::Custom(s)) if s == "Could not handle 123",
     /// ));
     /// ```
-    fn map_err<F, Map: FnOnce(Self::Error) -> F>(
-        self,
-        map: Map,
-    ) -> impl Outcome<Output = Self::Output, Error = F>;
+    #[iex]
+    fn map_err<F, O>(self, op: O) -> Result<Self::Output, F>
+    where
+        O: FnOnce(Self::Error) -> F;
 
     /// Cast a generic result to a [`Result`].
     ///
