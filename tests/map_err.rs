@@ -10,6 +10,11 @@ fn maps_err() -> Result<(), String> {
     produces_err().map_err(|e| format!("{e} world!"))
 }
 
+#[test]
+fn simple() {
+    assert_eq!(maps_err().into_result().unwrap_err(), "Hello, world!");
+}
+
 #[iex]
 fn produces_err2(s: &str) -> Result<i32, &'static str> {
     Err(&*s.to_string().leak())
@@ -25,6 +30,11 @@ fn maps_err_owned() -> Result<i32, String> {
             format!("{e} world!")
         },
     )?)
+}
+
+#[test]
+fn shares() {
+    assert_eq!(maps_err_owned().into_result().unwrap_err(), "Hello, world!");
 }
 
 struct A;
@@ -59,14 +69,12 @@ fn maps_err_mut_ref(mut a: A) -> Result<(), ()> {
     Ok(())
 }
 
-fn main() {
-    let s = maps_err().into_result().unwrap_err();
-    assert_eq!(s, "Hello, world!");
+#[test]
+fn owned_method() {
+    assert_eq!(A.maps_err_owned().into_result(), Err(()));
+}
 
-    let s = maps_err_owned().into_result().unwrap_err();
-    assert_eq!(s, "Hello, world!");
-
-    let _ = A.maps_err_owned().into_result();
-
-    let _ = maps_err_mut_ref(A).into_result();
+#[test]
+fn mut_ref() {
+    assert_eq!(maps_err_mut_ref(A).into_result(), Err(()));
 }
