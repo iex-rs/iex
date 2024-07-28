@@ -11,6 +11,8 @@
 /// opposed to the built-in try operator) that propagates the error from a [`Result<T, E>`] or an
 /// `#[iex] Result<T, E>` and returns a `T`.
 ///
+/// **Closure support is incomplete and nightly-only.**
+///
 /// # Pitfalls
 ///
 /// The lifetimes may be a bit difficult to get right.
@@ -90,9 +92,12 @@
 /// }
 /// ```
 ///
-/// ## Closures and lifetimes
+/// ## Closures
 ///
-/// `#[iex]` closures can't take arguments whose types contain non-`'static` lifetimes. Sorry.
+/// `#[iex]` closures can't take arguments whose types contain non-`'static` lifetimes. Sorry. Also,
+/// you need the nightly features
+/// [`stmt_expr_attributes`](https://github.com/rust-lang/rust/issues/15701) and
+/// [`proc_macro_hygiene`](https://github.com/rust-lang/rust/issues/54727) to be enabled.
 ///
 /// ## `?` in macros
 ///
