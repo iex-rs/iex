@@ -118,27 +118,6 @@
 /// }
 /// ```
 ///
-/// To handle this usecase, the macro `iex_try!(<expr>)`, semanticaly identical to `<expr>?`, works
-/// in `#[iex]` functions even from within macros:
-///
-/// ```
-/// use iex::iex;
-///
-/// #[iex]
-/// fn returns_result(x: i32) -> Result<i32, i32> { Ok(x) }
-///
-/// macro_rules! ok {
-///     ($e:expr) => {
-///         iex_try!(returns_result($e))
-///     };
-/// }
-///
-/// #[iex]
-/// fn test() -> Result<i32, i32> {
-///     Err(ok!(123))
-/// }
-/// ```
-///
 /// # Attributes
 ///
 /// Rust evaluates attribute macros from top to bottom, so if `#[iex]` is not the only attribute

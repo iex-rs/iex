@@ -288,12 +288,6 @@ fn transform_item_fn(captures: Vec<Lifetime>, input: ItemFn) -> proc_macro::Toke
         #constness #asyncness
         move |marker: ::iex::imp::Marker<#error_type>| {
             let #no_copy = #no_copy; // Force FnOnce inference
-            #[allow(unused_macros)]
-            macro_rules! iex_try {
-                ($e:expr) => {
-                    (marker, ::core::mem::ManuallyDrop::new($e))._iex_forward()
-                };
-            }
             #closure_block
         }
     };
@@ -436,12 +430,6 @@ fn transform_closure(captures: Vec<Lifetime>, input: ExprClosure) -> proc_macro:
         #constness #asyncness
         move |marker: ::iex::imp::Marker<#error_type>| {
             let #no_copy = #no_copy; // Force FnOnce inference
-            #[allow(unused_macros)]
-            macro_rules! iex_try {
-                ($e:expr) => {
-                    (marker, ::core::mem::ManuallyDrop::new($e))._iex_forward()
-                };
-            }
             #(#closure_body)*
         }
     };
@@ -542,12 +530,6 @@ pub fn try_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     #[inline(always)]
                     move |marker: ::iex::imp::Marker<_>| {
                         let no_copy = no_copy; // Force FnOnce inference
-                        #[allow(unused_macros)]
-                        macro_rules! iex_try {
-                            ($e:expr) => {
-                                (marker, ::core::mem::ManuallyDrop::new($e))._iex_forward()
-                            };
-                        }
                         #(#body)*
                     }
                 },
