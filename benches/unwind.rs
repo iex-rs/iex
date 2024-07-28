@@ -3,6 +3,7 @@ use iex::{iex, Outcome};
 
 #[iex]
 fn unwind(n: i32) -> Result<(), &'static str> {
+    let _vec = black_box(vec![1]);
     if n > 0 {
         black_box(Ok(unwind(n - 1)?))
     } else {
@@ -15,6 +16,7 @@ fn start_unwind(n: i32) {
 }
 
 fn result(n: i32) -> Result<(), &'static str> {
+    let _vec = black_box(vec![1]);
     if n > 0 {
         black_box(Ok(result(n - 1)?))
     } else {
