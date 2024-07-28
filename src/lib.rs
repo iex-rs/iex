@@ -75,6 +75,12 @@
 //! The data is averaged between 5 runs. The repositories for data reproduction are published
 //! [on GitHub](https://github.com/orgs/iex-rs/repositories).
 //!
+//! This benchmark only measures the happy path. When triggered, exceptions are significantly slower
+//! than algebraic [`Result`]s. However, it is important to recognize that realistic programs
+//! perform actions other than throwing errors, and the slowness of the error path is offset by the
+//! increased speed of the happy path. For JSON parsing in particular, the break-even point is 1
+//! error per 30-100k bytes parsed, depending on the data.
+//!
 //! Note that just blindly slapping [`#[iex]`](macro@iex) onto every single function might not
 //! increase your performance at best and will decrease it at worst. Like with every other
 //! optimization, it is critical to profile code and measure performance on realistic data.
