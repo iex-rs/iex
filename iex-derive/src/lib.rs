@@ -239,6 +239,19 @@ fn transform_trait_item_fn(captures: Vec<Lifetime>, input: TraitItemFn) -> proc_
 fn transform_item_fn(captures: Vec<Lifetime>, input: ItemFn) -> proc_macro::TokenStream {
     let input_span = input.span();
 
+    if let Some(constness) = input.sig.constness {
+        return quote_spanned! {
+            constness.span() => compile_error!("#[iex] does not support const functions");
+        }
+        .into();
+    }
+    if let Some(asyncness) = input.sig.asyncness {
+        return quote_spanned! {
+            asyncness.span() => compile_error!("#[iex] does not support async functions");
+        }
+        .into();
+    }
+
     let result_type = match input.sig.output {
         ReturnType::Default => parse_quote! { () },
         ReturnType::Type(_, ref result_type) => result_type.clone(),
@@ -269,9 +282,6 @@ fn transform_item_fn(captures: Vec<Lifetime>, input: ItemFn) -> proc_macro::Toke
         ..input.sig.clone()
     };
 
-    let constness = input.sig.constness;
-    let asyncness = input.sig.asyncness;
-
     let mut closure_block = input.block;
     let mut replace_try = ReplaceTry {
         errors: darling::Error::accumulator(),
@@ -284,9 +294,7 @@ fn transform_item_fn(captures: Vec<Lifetime>, input: ItemFn) -> proc_macro::Toke
     let no_copy: Ident = parse_quote_spanned! { Span::mixed_site() => no_copy };
 
     let mut closure: ExprClosure = parse_quote_spanned! {
-        Span::mixed_site() =>
-        #constness #asyncness
-        move |marker: ::iex::imp::Marker<#error_type>| {
+        Span::mixed_site() => move |marker: ::iex::imp::Marker<#error_type>| {
             let #no_copy = #no_copy; // Force FnOnce inference
             #closure_block
         }
@@ -390,6 +398,19 @@ fn transform_closure(captures: Vec<Lifetime>, input: ExprClosure) -> proc_macro:
         .into();
     }
 
+    if let Some(constness) = input.constness {
+        return quote_spanned! {
+            constness.span() => compile_error!("#[iex] does not support const closures");
+        }
+        .into();
+    }
+    if let Some(asyncness) = input.asyncness {
+        return quote_spanned! {
+            asyncness.span() => compile_error!("#[iex] does not support async closures");
+        }
+        .into();
+    }
+
     let input_span = input.span();
 
     let output_type: Type;
@@ -404,9 +425,6 @@ fn transform_closure(captures: Vec<Lifetime>, input: ExprClosure) -> proc_macro:
             error_type = parse_quote! { <#result_type as ::iex::Outcome>::Error };
         }
     }
-
-    let constness = input.constness;
-    let asyncness = input.asyncness;
 
     let mut closure_body = input.body;
     let mut replace_try = ReplaceTry {
@@ -426,9 +444,7 @@ fn transform_closure(captures: Vec<Lifetime>, input: ExprClosure) -> proc_macro:
     let closure_ident: Ident = parse_quote_spanned! { Span::mixed_site() => closure };
 
     let mut internal_closure: ExprClosure = parse_quote_spanned! {
-        Span::mixed_site() =>
-        #constness #asyncness
-        move |marker: ::iex::imp::Marker<#error_type>| {
+        Span::mixed_site() => move |marker: ::iex::imp::Marker<#error_type>| {
             let #no_copy = #no_copy; // Force FnOnce inference
             #(#closure_body)*
         }
