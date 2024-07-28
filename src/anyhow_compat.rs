@@ -6,6 +6,7 @@ use crate::{
 use anyhow::{Error, Result};
 use std::convert::Infallible;
 use std::fmt::Display;
+use std::marker::PhantomData;
 
 /// [`anyhow`](https://docs.rs/anyhow/latest/anyhow/) compatibility layer.
 ///
@@ -101,10 +102,13 @@ impl<T, E, Func: CallWithMarker<T, E>> Context<T, E> for IexResult<T, E, Func> {
         Result<(), E>: anyhow::Context<(), E>,
         C: Display + Send + Sync + 'static,
     {
-        IexResult::new(GenericContext {
-            outcome: self,
-            context,
-        })
+        IexResult(
+            GenericContext {
+                outcome: self,
+                context,
+            },
+            PhantomData,
+        )
     }
 
     fn with_context<C, F>(self, f: F) -> Self::WithContextOutcome<C, F>
@@ -113,7 +117,7 @@ impl<T, E, Func: CallWithMarker<T, E>> Context<T, E> for IexResult<T, E, Func> {
         C: Display + Send + Sync + 'static,
         F: FnOnce() -> C,
     {
-        IexResult::new(GenericWithContext { outcome: self, f })
+        IexResult(GenericWithContext { outcome: self, f }, PhantomData)
     }
 }
 

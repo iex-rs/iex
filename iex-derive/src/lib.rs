@@ -347,10 +347,11 @@ fn transform_item_fn(captures: Vec<Lifetime>, input: ItemFn) -> proc_macro::Toke
                 // We need { .. } to support the #[inline] attribute on the closure
                 #[allow(unused_mut)]
                 let mut #name = { #closure };
-                ::iex::imp::IexResult::new(
+                ::iex::imp::IexResult(
                     #inline_attr move |marker| {
                         ::iex::Outcome::get_value_or_panic(#name(marker), marker)
                     },
+                    ::core::marker::PhantomData,
                 )
             }
         },
@@ -472,10 +473,11 @@ fn transform_closure(captures: Vec<Lifetime>, input: ExprClosure) -> proc_macro:
                 // We need { .. } to support the #[inline] attribute on the closure
                 #[allow(unused_mut)]
                 let mut #closure_ident = { #internal_closure };
-                ::iex::imp::IexResult::<#output_type, #error_type, _>::new(
+                ::iex::imp::IexResult::<#output_type, #error_type, _>(
                     #inline_attr move |marker| {
                         ::iex::Outcome::get_value_or_panic(#closure_ident(marker), marker)
                     },
+                    ::core::marker::PhantomData,
                 )
             }
         }),
@@ -535,19 +537,22 @@ pub fn try_block(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             #[allow(unused_imports)]
             use ::iex::imp::_IexForward;
             let no_copy = ::iex::imp::NoCopy; // Force FnOnce inference
-            ::iex::imp::IexResult::new({
-                #[inline(always)]
-                move |marker: ::iex::imp::Marker<_>| {
-                    let no_copy = no_copy; // Force FnOnce inference
-                    #[allow(unused_macros)]
-                    macro_rules! iex_try {
-                        ($e:expr) => {
-                            (marker, ::core::mem::ManuallyDrop::new($e))._iex_forward()
-                        };
+            ::iex::imp::IexResult(
+                {
+                    #[inline(always)]
+                    move |marker: ::iex::imp::Marker<_>| {
+                        let no_copy = no_copy; // Force FnOnce inference
+                        #[allow(unused_macros)]
+                        macro_rules! iex_try {
+                            ($e:expr) => {
+                                (marker, ::core::mem::ManuallyDrop::new($e))._iex_forward()
+                            };
+                        }
+                        #(#body)*
                     }
-                    #(#body)*
-                }
-            })
+                },
+                ::core::marker::PhantomData,
+            )
         }
     }
     .into()

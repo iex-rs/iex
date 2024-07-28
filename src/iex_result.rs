@@ -17,13 +17,7 @@ impl<T, E, Func: FnOnce(Marker<E>) -> T> CallWithMarker<T, E> for Func {
     }
 }
 
-pub struct IexResult<T, E, Func>(Func, PhantomData<fn() -> (T, E)>);
-
-impl<T, E, Func> IexResult<T, E, Func> {
-    pub fn new(f: Func) -> Self {
-        Self(f, PhantomData)
-    }
-}
+pub struct IexResult<T, E, Func>(pub Func, pub PhantomData<fn() -> (T, E)>);
 
 impl<T, E, Func> Sealed for IexResult<T, E, Func> {}
 
@@ -71,12 +65,15 @@ impl<T, E, Func: CallWithMarker<T, E>> Outcome for IexResult<T, E, Func> {
     where
         O: FnOnce(E) -> F,
     {
-        IexResult::new(|marker| {
-            let exception_mapper = ExceptionMapper::new(marker, (), |(), err| op(err));
-            let value = self.get_value_or_panic(exception_mapper.get_in_marker());
-            exception_mapper.swallow();
-            value
-        })
+        IexResult(
+            |marker| {
+                let exception_mapper = ExceptionMapper::new(marker, (), |(), err| op(err));
+                let value = self.get_value_or_panic(exception_mapper.get_in_marker());
+                exception_mapper.swallow();
+                value
+            },
+            PhantomData,
+        )
     }
 
     fn into_result(self) -> Result<T, E> {
