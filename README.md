@@ -1,6 +1,6 @@
 # Idiomatic exceptions for Rust
 
-![Crates.io Version](https://img.shields.io/crates/v/iex)
+[![Crates.io Version](https://img.shields.io/crates/v/iex)](https://crates.io/crates/iex)
 [![docs.rs](https://img.shields.io/docsrs/iex)](https://docs.rs/iex/latest/iex/)
 
 Speed up the happy path of your `Result`-based functions by seamlessly using exceptions for error
