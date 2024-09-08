@@ -140,6 +140,18 @@
 //! block, the corresponding function in the `trait Trait` block should also be marked with
 //! [`#[iex]`](macro@iex). Such traits are not object-safe, unless the method is restricted to
 //! `where Self: Sized` (open an issue if you want me to spend time developing a workaround).
+//!
+//! iex uses Rust's [panic and unwind machinery](mod@std::panic). If you compile
+//! with aborting panics
+//! ([`panic=abort`](https://doc.rust-lang.org/cargo/reference/profiles.html#panic)),
+//! then you cannot use iex because the internal panics abort the program.
+//! Custom [panic handlers](std::panic::set_hook) on the other hand do not
+//! observe iex's internal panics. Because iex relies on unwinding, by using iex
+//! you restrict how others can use your code. Unless you always ship pre built
+//! binaries (users never compile the code), you limit users to not use aborting
+//! panics or compile on platforms on which unwinding is not supported. Note
+//! that some users configure aborting panics in their global cargo
+//! configuration to compile all code with aborting panics.
 
 #![cfg_attr(doc, feature(doc_auto_cfg))]
 
