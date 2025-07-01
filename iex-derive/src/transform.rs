@@ -2,8 +2,8 @@ use crate::rewrite::{ErrorType, rewrite_block, rewrite_expr};
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, quote_spanned};
 use syn::{
-    Expr, ExprClosure, Ident, ItemFn, ReturnType, Stmt, TraitItemFn, parse_quote,
-    parse_quote_spanned, spanned::Spanned,
+    Expr, ExprClosure, Ident, ItemFn, ReturnType, TraitItemFn, parse_quote, parse_quote_spanned,
+    spanned::Spanned,
 };
 
 pub fn transform_trait_item_fn(input: TraitItemFn) -> TokenStream {
@@ -71,10 +71,7 @@ pub fn transform_item_fn(input: ItemFn) -> TokenStream {
     let closure_block = rewrite_block(*input.block, Some(ErrorType::ForReturn));
 
     let mut closure: ExprClosure = parse_quote_spanned! { Span::mixed_site()=>
-        move || {
-            let no_copy = no_copy; // Force FnOnce inference
-            #closure_block
-        }
+        move || #closure_block
     };
     closure.attrs = input
         .attrs
@@ -150,17 +147,9 @@ pub fn transform_closure(input: ExprClosure) -> TokenStream {
     let input_span = input.span();
 
     let closure_body = rewrite_expr(*input.body, Some(ErrorType::ForReturn));
-    // Workaround false positive "useless { .. } around return value" warning.
-    let closure_body = match closure_body {
-        Expr::Block(block) if block.attrs.is_empty() && block.label.is_none() => block.block.stmts,
-        expr => vec![Stmt::Expr(expr, None)],
-    };
 
     let mut closure: ExprClosure = parse_quote_spanned! { Span::mixed_site()=>
-        move || {
-            let no_copy = no_copy; // Force FnOnce inference
-            #(#closure_body)*
-        }
+        move || #closure_body
     };
     closure.attrs = input.attrs;
 
@@ -214,10 +203,9 @@ fn result_to_outcome(result: ReturnType) -> ReturnType {
     }
 }
 
-pub fn closure_to_iex_result(input_span: Span, closure: ExprClosure) -> Expr {
+fn closure_to_iex_result(input_span: Span, closure: ExprClosure) -> Expr {
     let return_phantom: Ident = parse_quote_spanned!(Span::mixed_site()=> return_phantom);
     let try_phantom: Ident = parse_quote_spanned!(Span::mixed_site()=> try_phantom);
-    let no_copy: Ident = parse_quote_spanned!(Span::mixed_site()=> no_copy);
 
     // This span is required for dead code diagnostic.
     parse_quote_spanned! { input_span=> {
@@ -225,8 +213,6 @@ pub fn closure_to_iex_result(input_span: Span, closure: ExprClosure) -> Expr {
         // codegen.
         let #return_phantom = ::core::marker::PhantomData;
         let #try_phantom = #return_phantom;
-
-        let #no_copy = ::core::cell::Cell::new(());
 
         ::iex::IexResult {
             closure: #closure,
