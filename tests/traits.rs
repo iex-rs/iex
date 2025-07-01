@@ -1,4 +1,4 @@
-use iex::{iex, Outcome};
+use iex::{Outcome, iex};
 
 trait FallibleSum {
     type Error;

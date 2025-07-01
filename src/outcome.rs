@@ -1,6 +1,6 @@
-use crate::{iex, imp::Marker};
+use core::marker::PhantomData;
 
-pub trait Sealed {}
+pub(crate) trait Sealed {}
 
 /// Properties of a generalized result type.
 ///
@@ -12,7 +12,7 @@ pub trait Sealed {}
 /// and `inspect_err` in some cases. Notably, using `f(...).map_err(|e| ...)` requires that `f(...)`
 /// and `|e| ...` don't capture variables in incompatible ways:
 ///
-/// ```compile_fail
+/// ```
 /// use iex::{iex, Outcome};
 ///
 /// struct Struct;
@@ -54,7 +54,7 @@ pub trait Sealed {}
 ///     }
 ///     #[iex]
 ///     fn calls(&mut self) -> Result<(), i32> {
-///         Ok(self.errors().map_err(#[iex(shares = self)] |err| self.error_mapper(err))?)
+///         Ok(self.errors().map_err(|err| self.error_mapper(err))?)
 ///     }
 /// }
 /// ```
@@ -82,66 +82,92 @@ pub trait Sealed {}
 /// }
 /// ```
 #[must_use]
-pub trait Outcome: Sealed + crate::Context<Self::Output, Self::Error> {
-    /// The type of the success value.
+#[allow(private_bounds)]
+pub trait Outcome: Sealed {
     type Output;
 
-    /// The type of the error value.
     type Error;
 
+    // `phantom` is passed so that there's an easy way to unify type variables with `E`.
     #[doc(hidden)]
-    fn get_value_or_panic(self, marker: Marker<Self::Error>) -> Self::Output;
+    unsafe fn unwrap_or_throw(self, phantom: PhantomData<fn() -> Self::Error>) -> Self::Output;
 
-    /// Calls a function with a reference to the contained value if `Err`.
-    ///
-    /// Returns the original result.
-    ///
-    /// This is a generalized and more efficient version of [`Result::inspect_err`].
-    #[iex]
-    fn inspect_err<F>(self, f: F) -> Result<Self::Output, Self::Error>
+    #[doc(hidden)]
+    unsafe fn unwrap_or_throw_with_conversion<F>(
+        self,
+        phantom: PhantomData<fn() -> F>,
+    ) -> Self::Output
     where
-        F: FnOnce(&Self::Error);
+        Self: Sized,
+        Self::Error: Into<F>,
+    {
+        // This comparison will be optimized out.
+        if typeid::of::<Self::Error>() == typeid::of::<F>() {
+            // SAFETY: If we enter this conditional, `E` and `F` differ only in lifetimes. Lifetimes
+            // are erased in runtime, so `impl Into<F> for E` has the same implementation as
+            // `impl Into<T> for T` for some `T`, and that blanket implementation is a no-op.
+            // Therefore, no conversion needs to happen.
+            unsafe { self.unwrap_or_throw(PhantomData) }
+        } else {
+            match unsafe { self.intercept() } {
+                Ok(value) => value,
+                Err((err, handle)) => unsafe { handle.rethrow(err.into(), phantom) },
+            }
+        }
+    }
 
-    /// Apply a function to the `Err` value, leaving `Ok` untouched.
-    ///
-    /// This is a generalized and more efficient version of [`Result::map_err`].
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use iex::{iex, Outcome};
-    ///
-    /// enum MyError {
-    ///     IO(std::io::Error),
-    ///     Custom(String),
-    /// }
-    ///
-    /// #[iex]
-    /// fn producing_io_error() -> Result<(), std::io::Error> {
-    ///     Ok(())
-    /// }
-    ///
-    /// #[iex]
-    /// fn producing_string<T: std::fmt::Debug>(arg: T) -> Result<(), String> {
-    ///     Err(format!("Could not handle {:?}", arg))
-    /// }
-    ///
-    /// #[iex]
-    /// fn producing_my_error() -> Result<(), MyError> {
-    ///     producing_io_error().map_err(MyError::IO)?;
-    ///     producing_string(123).map_err(MyError::Custom)?;
-    ///     Ok(())
-    /// }
-    ///
-    /// assert!(matches!(
-    ///     producing_my_error().into_result(),
-    ///     Err(MyError::Custom(s)) if s == "Could not handle 123",
-    /// ));
-    /// ```
-    #[iex]
-    fn map_err<F, O>(self, op: O) -> Result<Self::Output, F>
-    where
-        O: FnOnce(Self::Error) -> F;
+    // This, unfortunately, needs to return a specific type for the handle, because `impl Trait`
+    // would capture `Self`, and for `IexResult`, this means that values borrowed by the closure
+    // would be considered borrowed even after `map_err` returns.
+    #[doc(hidden)]
+    unsafe fn intercept(self) -> Result<Self::Output, (Self::Error, RethrowHandle<Self::Error>)>;
+
+    // /// Calls a function with a reference to the contained value if `Err`.
+    // ///
+    // /// Returns the original result.
+    // ///
+    // /// This is a generalized and more efficient version of [`Result::inspect_err`].
+    // #[iex]
+    // fn inspect_err<F: FnOnce(&Self::Error)>(self, f: F) -> Result<Self::Output, Self::Error>;
+
+    // /// Apply a function to the `Err` value, leaving `Ok` untouched.
+    // ///
+    // /// This is a generalized and more efficient version of [`Result::map_err`].
+    // ///
+    // /// # Example
+    // ///
+    // /// ```
+    // /// use iex::{iex, Outcome};
+    // ///
+    // /// enum MyError {
+    // ///     IO(std::io::Error),
+    // ///     Custom(String),
+    // /// }
+    // ///
+    // /// #[iex]
+    // /// fn producing_io_error() -> Result<(), std::io::Error> {
+    // ///     Ok(())
+    // /// }
+    // ///
+    // /// #[iex]
+    // /// fn producing_string<T: std::fmt::Debug>(arg: T) -> Result<(), String> {
+    // ///     Err(format!("Could not handle {:?}", arg))
+    // /// }
+    // ///
+    // /// #[iex]
+    // /// fn producing_my_error() -> Result<(), MyError> {
+    // ///     producing_io_error().map_err(MyError::IO)?;
+    // ///     producing_string(123).map_err(MyError::Custom)?;
+    // ///     Ok(())
+    // /// }
+    // ///
+    // /// assert!(matches!(
+    // ///     producing_my_error().into_result(),
+    // ///     Err(MyError::Custom(s)) if s == "Could not handle 123",
+    // /// ));
+    // /// ```
+    // #[iex]
+    // fn map_err<F, O: FnOnce(Self::Error) -> F>(self, op: O) -> Result<Self::Output, F>;
 
     /// Cast a generic result to a [`Result`].
     ///
@@ -177,4 +203,17 @@ pub trait Outcome: Sealed + crate::Context<Self::Output, Self::Error> {
     ///
     /// despite repetitions.
     fn into_result(self) -> Result<Self::Output, Self::Error>;
+}
+
+pub struct RethrowHandle<E> {
+    pub(crate) in_flight_exception: Option<lithium::InFlightException<E>>,
+}
+
+impl<E> RethrowHandle<E> {
+    pub unsafe fn rethrow<F>(self, ex: F, _phantom: PhantomData<fn() -> F>) -> ! {
+        match self.in_flight_exception {
+            Some(handle) => unsafe { handle.rethrow(ex) },
+            None => unsafe { lithium::throw(ex) },
+        }
+    }
 }

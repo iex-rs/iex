@@ -1,4 +1,4 @@
-use iex::{iex, Outcome};
+use iex::{Outcome, iex};
 
 #[iex]
 fn produces_err() -> Result<(), String> {
@@ -22,14 +22,11 @@ fn produces_err2(s: &str) -> Result<i32, &'static str> {
 
 #[iex]
 fn maps_err_owned() -> Result<i32, String> {
-    let s1 = "Hello,".to_string();
-    Ok(produces_err2(&mut s1).map_err(
-        #[iex(shares = s1)]
-        |e| {
-            let _s1: String = s1;
-            format!("{e} world!")
-        },
-    )?)
+    let mut s1 = "Hello,".to_string();
+    Ok(produces_err2(&mut s1).map_err(|e| {
+        let _s1: String = s1;
+        format!("{e} world!")
+    })?)
 }
 
 #[test]
@@ -46,25 +43,19 @@ impl A {
     }
 
     #[iex]
-    fn maps_err_owned(self) -> Result<(), ()> {
-        Ok(self.produces_err().map_err(
-            #[iex(shares = self)]
-            |_| {
-                let _self: A = self;
-            },
-        )?)
+    fn maps_err_owned(mut self) -> Result<(), ()> {
+        Ok(self.produces_err().map_err(|_| {
+            let _self: A = self;
+        })?)
     }
 }
 
 #[iex]
 fn maps_err_mut_ref(mut a: A) -> Result<(), ()> {
     let ar = &mut a;
-    ar.produces_err().map_err(
-        #[iex(shares = ar)]
-        |_| {
-            let _ar: &mut A = ar;
-        },
-    )?;
+    ar.produces_err().map_err(|_| {
+        let _ar: &mut A = ar;
+    })?;
     drop(a);
     Ok(())
 }

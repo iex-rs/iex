@@ -1,9 +1,10 @@
-use anyhow::{anyhow, bail, Result};
-use iex::{iex, Context, Outcome};
+use anyhow::{Context, Result, anyhow, bail};
+use iex::{Outcome, iex};
 
 #[iex]
 fn returns_anyhow_error() -> Result<()> {
-    bail!(r"¯\_(ツ)_/¯");
+    Err(anyhow!(r"¯\_(ツ)_/¯"))
+    // bail!(r"¯\_(ツ)_/¯");
 }
 
 #[iex]

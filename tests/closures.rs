@@ -1,6 +1,6 @@
 #![feature(stmt_expr_attributes, proc_macro_hygiene)]
 
-use iex::{iex, Outcome};
+use iex::{Outcome, iex};
 
 #[iex]
 fn example() -> Result<u32, &'static str> {

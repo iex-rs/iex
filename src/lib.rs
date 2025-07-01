@@ -144,54 +144,17 @@
 #![cfg_attr(doc, feature(doc_auto_cfg))]
 
 mod macros;
-pub use macros::{iex, try_block};
-
-use std::cell::UnsafeCell;
-
-mod exception;
-use exception::Exception;
+pub use macros::iex;
 
 mod outcome;
 pub use outcome::Outcome;
 
-#[cfg(feature = "anyhow")]
-mod anyhow_compat;
-#[cfg(feature = "anyhow")]
-pub use anyhow_compat::Context;
-
-#[cfg(not(feature = "anyhow"))]
-pub trait Context<T, E> {}
-#[cfg(not(feature = "anyhow"))]
-impl<T, E> Context<T, E> for Result<T, E> {}
-#[cfg(not(feature = "anyhow"))]
-impl<T, E, Func: iex_result::CallWithMarker<T, E>> Context<T, E> for imp::IexResult<T, E, Func> {}
-#[cfg(not(feature = "anyhow"))]
-impl<T> Context<T, std::convert::Infallible> for Option<T> {}
-
 mod iex_result;
+#[doc(hidden)]
+pub use iex_result::IexResult;
+
 mod result;
 
-mod exception_mapper;
-mod forward;
-mod marker;
-
 pub mod example;
-
-struct IexPanic;
-
-thread_local! {
-    static EXCEPTION: UnsafeCell<Exception> = const { UnsafeCell::new(Exception::new()) };
-}
-
-#[doc(hidden)]
-pub mod imp {
-    use super::*;
-    pub use exception_mapper::ExceptionMapper;
-    pub use fix_hidden_lifetime_bug;
-    pub use forward::_IexForward;
-    pub use iex_result::IexResult;
-    pub use marker::Marker;
-    pub struct NoCopy;
-}
 
 extern crate self as iex;

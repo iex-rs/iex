@@ -48,8 +48,6 @@
 /// struct Ref<'a, T>(Option<&'a T>);
 ///
 /// impl<'a, T: Clone> Ref<'a, T> {
-///     // If there were more lifetimes to list, you'd use #[iex(captures = "'a", captures = "'b")]
-///     #[iex(captures = "'a")]
 ///     fn get(self) -> Result<T, ()> {
 ///         self.0.cloned().ok_or(())
 ///     }
@@ -70,26 +68,6 @@
 /// 13 | |         self.0.cloned().ok_or(())
 /// 14 | |     }
 ///    | |_____^
-/// ```
-///
-/// Finally, make sure to use the same lifetimes in `trait` and `impl`:
-///
-/// ```compile_fail
-/// use iex::iex;
-///
-/// trait Trait {
-///     #[iex]
-///     fn takes_str(s: &'static str) -> Result<(), ()>;
-/// }
-///
-/// impl Trait for () {
-///     // error[E0308]: method not compatible with trait
-///     // Use 's: &'static str' instead
-///     #[iex]
-///     fn takes_str(s: &str) -> Result<(), ()> {
-///         Ok(())
-///     }
-/// }
 /// ```
 ///
 /// ## Closures
@@ -172,7 +150,7 @@
 ///     returning_iex_result("Some error happened!")?;
 ///
 ///     // Closures work too
-///     let closure = #[iex] || Ok(1);
+///     let closure = #[iex] || Ok::<i32, String>(1);
 ///     closure()?;
 ///
 ///     // You can also directly return a Result
@@ -203,32 +181,3 @@
 /// fn invalid_example() {}
 /// ```
 pub use iex_derive::iex;
-
-/// Try block.
-///
-/// This is an implementation of the [nightly `try` blocks][1] for [`#[iex]`](macro@crate::iex).
-///
-/// # Example
-///
-/// ```
-/// use iex::{iex, Outcome, try_block};
-///
-/// #[iex]
-/// fn fallible() -> Result<i32, ()> { Ok(1) }
-///
-/// #[iex]
-/// fn example() -> Result<(), ()> {
-///     // Many operations...
-///     let value = try_block! {
-///         fallible()?;
-///         fallible()?;
-///         2
-///     }.inspect_err(|e| println!("{e:?}"))?;  // Common error handler
-///     assert_eq!(value, 2);
-///     // Many other operations...
-///     Ok(())
-/// }
-/// ```
-///
-/// [1]: https://doc.rust-lang.org/nightly/unstable-book/language-features/try-blocks.html
-pub use iex_derive::try_block;

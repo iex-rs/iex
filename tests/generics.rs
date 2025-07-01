@@ -1,4 +1,4 @@
-use iex::{iex, Outcome};
+use iex::{Outcome, iex};
 
 #[iex]
 fn identity<T>(a: T) -> Result<T, ()> {
