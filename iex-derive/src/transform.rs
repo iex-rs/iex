@@ -2,13 +2,31 @@ use crate::rewrite::{ErrorType, rewrite_block, rewrite_expr};
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, quote_spanned};
 use syn::{
-    Expr, ExprClosure, Ident, ItemFn, ReturnType, TraitItemFn, parse_quote, parse_quote_spanned,
-    spanned::Spanned,
+    Expr, ExprClosure, Ident, ItemFn, ReturnType, Signature, TraitItemFn, parse_quote,
+    parse_quote_spanned, spanned::Spanned,
 };
+
+fn validate_signature(sig: &Signature) -> Result<(), TokenStream> {
+    if let Some(constness) = sig.constness {
+        return Err(quote_spanned! { constness.span()=>
+            compile_error!("#[iex] does not support const functions");
+        });
+    }
+    if let Some(asyncness) = sig.asyncness {
+        return Err(quote_spanned! { asyncness.span()=>
+            compile_error!("#[iex] does not support async functions");
+        });
+    }
+    Ok(())
+}
 
 pub fn transform_trait_item_fn(input: TraitItemFn) -> TokenStream {
     // If default is Some(..), the input should have already been parsed as an ItemFn.
     assert!(input.default.is_none());
+
+    if let Err(err) = validate_signature(&input.sig) {
+        return err;
+    }
 
     let mut wrapper_attrs = input.attrs.clone();
     wrapper_attrs.insert(0, parse_quote!(#[cfg(not(doc))]));
@@ -52,18 +70,11 @@ pub fn transform_trait_item_fn(input: TraitItemFn) -> TokenStream {
 }
 
 pub fn transform_item_fn(input: ItemFn) -> TokenStream {
-    let input_span = input.span();
+    if let Err(err) = validate_signature(&input.sig) {
+        return err;
+    }
 
-    if let Some(constness) = input.sig.constness {
-        return quote_spanned! { constness.span()=>
-            compile_error!("#[iex] does not support const functions");
-        };
-    }
-    if let Some(asyncness) = input.sig.asyncness {
-        return quote_spanned! { asyncness.span()=>
-            compile_error!("#[iex] does not support async functions");
-        };
-    }
+    let input_span = input.span();
 
     let mut wrapper_sig = input.sig.clone();
     wrapper_sig.output = result_to_outcome(wrapper_sig.output);
