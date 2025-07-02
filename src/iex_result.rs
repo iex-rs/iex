@@ -7,39 +7,7 @@ pub struct IexResult<Func, E> {
 }
 
 impl<Func: FnOnce() -> T, T, E> IexResult<Func, E> {
-    /// Cast a generic result to a [`Result`].
-    ///
-    /// The [`Result`] can then be matched on, returned from a function that doesn't use
-    /// [`#[iex]`](macro@crate::iex), etc.
-    ///
-    /// This method is typically slow on complex code. Avoid it in the hot path if you can. For
-    /// example,
-    ///
-    /// ```rust
-    /// # use iex::{iex, Outcome};
-    /// # #[iex] fn f() -> Result<(), ()> { Ok(()) }
-    /// # #[iex] fn g() -> Result<(), ()> { Ok(()) }
-    /// # #[iex] fn fg() -> Result<(), ()> {
-    /// let result = f().into_result();
-    /// g()?;
-    /// result
-    /// # }
-    /// ```
-    ///
-    /// is perhaps better written as
-    ///
-    /// ```rust
-    /// # use iex::{iex, Outcome};
-    /// # #[iex] fn f() -> Result<(), ()> { Ok(()) }
-    /// # #[iex] fn g() -> Result<(), ()> { Ok(()) }
-    /// # #[iex] fn fg() -> Result<(), ()> {
-    /// let value = f().inspect_err(|_| drop(g().into_result()))?;
-    /// g()?;
-    /// Ok(value)
-    /// # }
-    /// ```
-    ///
-    /// despite repetitions.
+    /// Cast `#[iex] Result` to [`Result`].
     pub fn into_result(self) -> Result<T, E> {
         lithium::catch(|| unsafe { self.unwrap_or_throw(PhantomData) })
     }

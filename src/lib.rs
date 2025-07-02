@@ -96,6 +96,16 @@
 //! critical to profile code and measure performance on realistic data.
 //!
 //!
+//! # Documentation
+//!
+//! `#[iex]` functions are documented (by rustdoc) to return an algebraic [`Result`], just like in
+//! source code, but they also have an `#[iex]` macro attached to their signature. This is a
+//! sufficient indicator for those who know what `#[iex]` is, but if you use `#[iex]` in the public
+//! API of a library, you probably want to write that down in prose.
+//!
+//! For a rendered example, see [`example`].
+//!
+//!
 //! # Benchmark
 //!
 //! As a demonstration, we have rewritten [serde](https://serde.rs) and
@@ -162,8 +172,7 @@
 
 #![cfg_attr(doc, feature(doc_auto_cfg))]
 
-mod macros;
-pub use macros::*;
+pub use iex_derive::*;
 
 mod outcome;
 #[doc(hidden)]
