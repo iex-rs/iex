@@ -17,20 +17,24 @@ impl<Func: FnOnce() -> T, T, E> IexResult<Func, E> {
 impl<Func: FnOnce() -> T, T, E> Outcome for IexResult<Func, E> {
     type Output = T;
     type Error = E;
+    type RethrowHandle = IexResultRethrowHandle<E>;
 
     unsafe fn unwrap_or_throw(self, _phantom: PhantomData<fn() -> E>) -> T {
         (self.closure)()
     }
 
-    unsafe fn intercept(self) -> Result<T, (E, RethrowHandle<E>)> {
+    unsafe fn intercept(self) -> Result<T, (E, IexResultRethrowHandle<E>)> {
         match lithium::intercept(|| unsafe { self.unwrap_or_throw(PhantomData) }) {
             Ok(value) => Ok(value),
-            Err((err, handle)) => Err((
-                err,
-                RethrowHandle {
-                    in_flight_exception: Some(handle),
-                },
-            )),
+            Err((err, handle)) => Err((err, IexResultRethrowHandle(handle))),
         }
+    }
+}
+
+pub struct IexResultRethrowHandle<E>(lithium::InFlightException<E>);
+
+impl<E> RethrowHandle for IexResultRethrowHandle<E> {
+    unsafe fn do_rethrow<F>(self, ex: F) -> ! {
+        unsafe { self.0.rethrow(ex) }
     }
 }

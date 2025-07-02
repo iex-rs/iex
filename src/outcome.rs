@@ -10,6 +10,8 @@ pub trait Outcome {
 
     type Error;
 
+    type RethrowHandle: RethrowHandle;
+
     // `phantom` is passed so that there's an easy way to unify type variables with `E`.
     unsafe fn unwrap_or_throw(self, phantom: PhantomData<fn() -> Self::Error>) -> Self::Output;
 
@@ -36,21 +38,13 @@ pub trait Outcome {
         }
     }
 
-    // This, unfortunately, needs to return a specific type for the handle, because `impl Trait`
-    // would capture `Self`, and for `IexResult`, this means that values borrowed by the closure
-    // would be considered borrowed even after `map_err` returns.
-    unsafe fn intercept(self) -> Result<Self::Output, (Self::Error, RethrowHandle<Self::Error>)>;
+    unsafe fn intercept(self) -> Result<Self::Output, (Self::Error, Self::RethrowHandle)>;
 }
 
-pub struct RethrowHandle<E> {
-    pub(crate) in_flight_exception: Option<lithium::InFlightException<E>>,
-}
-
-impl<E> RethrowHandle<E> {
-    pub unsafe fn rethrow<F>(self, ex: F, _phantom: PhantomData<fn() -> F>) -> ! {
-        match self.in_flight_exception {
-            Some(handle) => unsafe { handle.rethrow(ex) },
-            None => unsafe { lithium::throw(ex) },
-        }
+pub trait RethrowHandle: Sized {
+    unsafe fn rethrow<F>(self, ex: F, _phantom: PhantomData<fn() -> F>) -> ! {
+        unsafe { self.do_rethrow(ex) }
     }
+
+    unsafe fn do_rethrow<F>(self, ex: F) -> !;
 }

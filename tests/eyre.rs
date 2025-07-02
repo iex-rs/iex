@@ -1,4 +1,4 @@
-use eyre::{Result, WrapErr, bail, eyre};
+use eyre::{bail, eyre, Result, WrapErr};
 use iex::iex;
 
 #[iex]

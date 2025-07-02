@@ -176,7 +176,7 @@ pub use iex_derive::*;
 
 mod outcome;
 #[doc(hidden)]
-pub use outcome::Outcome;
+pub use outcome::{Outcome, RethrowHandle};
 
 mod iex_result;
 #[doc(hidden)]

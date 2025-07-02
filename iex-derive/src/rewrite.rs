@@ -314,15 +314,10 @@ impl Fold for Rewrite<'_> {
                 let error_type = self.do_unwrap_value.unwrap();
                 let phantom = error_type.phantom();
 
-                let rethrow = match error_type {
-                    ErrorType::ForReturn => quote_spanned! {outcome.span()=>
-                        __iex_handle.rethrow(__iex_rethrown_err, #phantom)
-                    },
-                    ErrorType::ForTry => quote_spanned! {outcome.span()=>
-                        __iex_handle.rethrow(
-                            ::core::convert::Into::into(__iex_rethrown_err),
-                            #phantom,
-                        )
+                let map = match error_type {
+                    ErrorType::ForReturn => TokenStream::new(),
+                    ErrorType::ForTry => quote_spanned! { outcome.span()=>
+                        let __iex_rethrown_err = ::core::convert::Into::into(__iex_rethrown_err);
                     },
                 };
 
@@ -362,7 +357,14 @@ impl Fold for Rewrite<'_> {
                         Ok(__iex_value) => __iex_value,
                         Err((__iex_err, __iex_handle)) => {
                             let __iex_rethrown_err = #rethrown_err;
-                            unsafe { #rethrow }
+                            #map
+                            unsafe {
+                                ::iex::RethrowHandle::rethrow(
+                                    __iex_handle,
+                                    __iex_rethrown_err,
+                                    #phantom,
+                                )
+                            }
                         }
                     }
                 }})

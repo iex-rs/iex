@@ -1,5 +1,5 @@
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
-use iex::{Outcome, iex};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use iex::{iex, Outcome};
 
 #[iex]
 fn unwind(n: i32) -> Result<(), &'static str> {
