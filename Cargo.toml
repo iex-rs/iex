@@ -14,7 +14,7 @@ categories = ["rust-patterns"]
 anyhow = { version = "1", optional = true }
 eyre = { version = "0.6.12", optional = true }
 iex-derive = { path = "iex-derive", version = "0.2.0" }
-lithium = { path = "../lithium" }
+lithium = { path = "../lithium", version = "1" }
 typeid = "1.0.0"
 
 [dev-dependencies]
