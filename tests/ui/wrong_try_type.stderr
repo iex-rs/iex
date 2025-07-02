@@ -1,0 +1,15 @@
+error[E0277]: the `?` operator can only be applied to `Result` or `#[iex] Result`
+ --> tests/ui/wrong_try_type.rs:5:5
+  |
+5 |     10?;
+  |     ^^ the `?` operator cannot be applied to type `{integer}`
+  |
+  = help: the trait `Outcome` is not implemented for `{integer}`
+
+error[E0277]: the `?` operator can only be applied to `Result` or `#[iex] Result`
+ --> tests/ui/wrong_try_type.rs:6:5
+  |
+6 |     None?;
+  |     ^^^^ the `?` operator cannot be applied to type `Option<_>`
+  |
+  = help: the trait `Outcome` is not implemented for `Option<_>`
