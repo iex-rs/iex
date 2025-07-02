@@ -1,4 +1,4 @@
-use crate::{outcome::RethrowHandle, Outcome};
+use crate::{Outcome, RethrowHandle, Try};
 use core::marker::PhantomData;
 
 pub struct IexResult<Func, E> {
@@ -13,7 +13,6 @@ impl<Func: FnOnce() -> T, T, E> IexResult<Func, E> {
     }
 }
 
-#[diagnostic::do_not_recommend]
 impl<Func: FnOnce() -> T, T, E> Outcome for IexResult<Func, E> {
     type Output = T;
     type Error = E;
@@ -30,6 +29,9 @@ impl<Func: FnOnce() -> T, T, E> Outcome for IexResult<Func, E> {
         }
     }
 }
+
+#[diagnostic::do_not_recommend]
+impl<Func: FnOnce() -> T, T, E> Try for IexResult<Func, E> {}
 
 pub struct IexResultRethrowHandle<E>(lithium::InFlightException<E>);
 

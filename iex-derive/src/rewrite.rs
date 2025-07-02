@@ -86,15 +86,19 @@ fn stmt_is_expr_like(node: &Stmt) -> bool {
 
 fn generic_unwrap(outcome: Expr, error_type: ErrorType) -> Expr {
     let phantom = error_type.phantom();
-    // Insert `Into` conversion only for `e?`, not `return e`.
+    // Insert `From` conversion only for `e?`, not `return e`.
     let method = match error_type {
-        ErrorType::ForReturn => quote_spanned!(outcome.span()=> unwrap_or_throw),
-        ErrorType::ForTry => quote_spanned!(outcome.span()=> unwrap_or_throw_with_conversion),
+        ErrorType::ForReturn => quote_spanned! { outcome.span()=>
+            ::iex::Outcome::unwrap_or_throw
+        },
+        ErrorType::ForTry => quote_spanned!(outcome.span()=> ::iex::Try::do_try),
     };
     Expr::Verbatim(quote_spanned! {outcome.span()=> {
-        // Cannot use hygiene here because it'll mess up error origin formatting
+        // Cannot use hygiene or resolved_at here because it'll mess up error origin formatting.
         let __iex_outcome = #outcome;
-        unsafe { ::iex::Outcome::#method(__iex_outcome, #phantom) }
+        // `identity` required because rustc messes up reporting otherwise, see
+        // https://github.com/rust-lang/rust/issues/143336
+        unsafe { #method(__iex_outcome, ::core::convert::identity(#phantom)) }
     }})
 }
 
@@ -317,7 +321,7 @@ impl Fold for Rewrite<'_> {
                 let map = match error_type {
                     ErrorType::ForReturn => TokenStream::new(),
                     ErrorType::ForTry => quote_spanned! { outcome.span()=>
-                        let __iex_rethrown_err = ::core::convert::Into::into(__iex_rethrown_err);
+                        let __iex_rethrown_err = ::core::convert::From::from(__iex_rethrown_err);
                     },
                 };
 

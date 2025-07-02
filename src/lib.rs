@@ -174,9 +174,9 @@
 
 pub use iex_derive::*;
 
-mod outcome;
+mod traits;
 #[doc(hidden)]
-pub use outcome::{Outcome, RethrowHandle};
+pub use traits::{Outcome, RethrowHandle, Try};
 
 mod iex_result;
 #[doc(hidden)]

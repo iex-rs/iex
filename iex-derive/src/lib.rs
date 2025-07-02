@@ -63,7 +63,7 @@ use syn::{ExprClosure, TraitItemFn, parse, parse_macro_input};
 ///     // `?` can be applied to a `Result<_, String>`
 ///     returning_regular_result("Some error happened!".to_string())?;
 ///
-///     // `?` can be applied to a `Result<_, impl Into<String>>` too
+///     // `?` can be applied to a `Result<_, E>` too, as long as `String: From<E>`
 ///     returning_regular_result("Some error happened!")?;
 ///
 ///     // The same applies to `#[iex] Result`

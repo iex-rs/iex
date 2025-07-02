@@ -1,7 +1,6 @@
-use crate::{outcome::RethrowHandle, Outcome};
+use crate::{Outcome, RethrowHandle, Try};
 use core::marker::PhantomData;
 
-#[diagnostic::do_not_recommend]
 impl<T, E> Outcome for Result<T, E> {
     type Output = T;
     type Error = E;
@@ -21,6 +20,9 @@ impl<T, E> Outcome for Result<T, E> {
         }
     }
 }
+
+#[diagnostic::do_not_recommend]
+impl<T, E> Try for Result<T, E> {}
 
 pub struct ResultRethrowHandle;
 
