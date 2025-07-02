@@ -160,7 +160,8 @@ pub fn transform_closure(input: ExprClosure) -> TokenStream {
         ..input
     };
 
-    quote! { #wrapper_closure }
+    // Wrap in block for the attribute to apply to the expression correctly.
+    quote! { { #wrapper_closure } }
 }
 
 fn result_to_outcome(result: ReturnType) -> ReturnType {

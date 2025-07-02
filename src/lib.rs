@@ -163,7 +163,7 @@
 #![cfg_attr(doc, feature(doc_auto_cfg))]
 
 mod macros;
-pub use macros::iex;
+pub use macros::*;
 
 mod outcome;
 #[doc(hidden)]
