@@ -32,7 +32,7 @@ pub fn transform_trait_item_fn(input: TraitItemFn) -> TokenStream {
     wrapper_attrs.insert(0, parse_quote!(#[cfg(not(doc))]));
 
     let mut wrapper_sig = input.sig.clone();
-    wrapper_sig.output = result_to_outcome(wrapper_sig.output);
+    wrapper_sig.output = adjust_return_type(wrapper_sig.output);
 
     let wrapper_fn = TraitItemFn {
         attrs: wrapper_attrs,
@@ -77,7 +77,7 @@ pub fn transform_item_fn(input: ItemFn) -> TokenStream {
     let input_span = input.span();
 
     let mut wrapper_sig = input.sig.clone();
-    wrapper_sig.output = result_to_outcome(wrapper_sig.output);
+    wrapper_sig.output = adjust_return_type(wrapper_sig.output);
 
     let closure_block = rewrite_block(*input.block, Some(ErrorType::ForReturn));
 
@@ -166,7 +166,7 @@ pub fn transform_closure(input: ExprClosure) -> TokenStream {
 
     let wrapper_closure = ExprClosure {
         attrs: vec![parse_quote!(#[inline(always)])],
-        output: result_to_outcome(input.output),
+        output: adjust_return_type(input.output),
         body: Box::new(closure_to_iex_result(input_span, closure)),
         ..input
     };
@@ -175,7 +175,7 @@ pub fn transform_closure(input: ExprClosure) -> TokenStream {
     quote! { { #wrapper_closure } }
 }
 
-fn result_to_outcome(result: ReturnType) -> ReturnType {
+fn adjust_return_type(result: ReturnType) -> ReturnType {
     match result {
         ReturnType::Default => ReturnType::Default,
         ReturnType::Type(_, result_type) => {
