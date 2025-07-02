@@ -1,4 +1,4 @@
-use iex::{Outcome, iex};
+use iex::iex;
 
 #[derive(Debug, PartialEq)]
 struct A;

@@ -1,11 +1,7 @@
-use crate::{
-    Outcome,
-    outcome::{RethrowHandle, Sealed},
-};
+use crate::{outcome::RethrowHandle, Outcome};
 use core::marker::PhantomData;
 
-impl<T, E> Sealed for Result<T, E> {}
-
+#[diagnostic::do_not_recommend]
 impl<T, E> Outcome for Result<T, E> {
     type Output = T;
     type Error = E;
@@ -27,9 +23,5 @@ impl<T, E> Outcome for Result<T, E> {
                 },
             )),
         }
-    }
-
-    fn into_result(self) -> Self {
-        self
     }
 }

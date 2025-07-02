@@ -1,24 +1,25 @@
 #![feature(stmt_expr_attributes, proc_macro_hygiene)]
 
-use iex::{Outcome, iex};
+use iex::iex;
 
 #[iex]
-fn example() -> Result<u32, &'static str> {
+fn example<'a>(error_str: &'a str) -> Result<u32, &'a str> {
+    // Check that receiving arguments with non-`'static` lifetimes works.
     let checked_divide = {
         #[iex]
-        |a: u32, b: u32| -> Result<u32, &'static str> {
+        |a: u32, b: u32, error_str: &'a str| /* -> Result<u32, &'static str> */ {
             if b == 0 {
-                Err("Cannot divide by zero")
+                Err(error_str)
             } else {
                 Ok(a / b)
             }
         }
     };
 
-    checked_divide(246, 2)
+    checked_divide(246, 2, error_str)
 }
 
 #[test]
 fn closure() {
-    assert_eq!(example().into_result(), Ok(123));
+    assert_eq!(example("Cannot divide by zero").into_result(), Ok(123));
 }

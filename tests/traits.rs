@@ -1,4 +1,4 @@
-use iex::{Outcome, iex};
+use iex::iex;
 
 trait FallibleSum {
     type Error;
@@ -45,7 +45,7 @@ impl SayHello for String {
 }
 
 impl SayHello for &str {
-    #[allow(refining_impl_trait)]
+    #[iex]
     fn say_hello(self) -> Result<String, ()> {
         Ok(self.to_string())
     }

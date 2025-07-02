@@ -1,7 +1,7 @@
 mod rewrite;
 mod transform;
 
-use syn::{TraitItemFn, parse, parse_macro_input};
+use syn::{parse, parse_macro_input, TraitItemFn};
 
 #[proc_macro_attribute]
 pub fn iex(

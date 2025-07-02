@@ -2,80 +2,9 @@
 ///
 /// This attribute can be applied to functions and closures.
 ///
-/// Applying this attribute to a function or a closure that returns [`Result<T, E>`] turns it into a
-/// function/closure that returns `#[iex] Result<T, E>`. This is an opaque type, but it implements
-/// the [`Outcome`](crate::Outcome) trait, so you can use
-/// [`.into_result()`](crate::Outcome::into_result) to turn it into [`Result<T, E>`].
-///
-/// Additionally, `expr?` inside `#[iex]`-wrapped code is interpreted as a custom operator (as
-/// opposed to the built-in try operator) that propagates the error from a [`Result<T, E>`] or an
-/// `#[iex] Result<T, E>` and returns a `T`.
-///
-/// **Closure support is incomplete and nightly-only.**
-///
-/// # Pitfalls
-///
-/// The lifetimes may be a bit difficult to get right.
-///
-/// ## Functions and lifetimes
-///
-/// If a function takes an argument whose *type* has an elided lifetime *parameter*, this parameter
-/// must be specified explicitly:
-///
-/// ```
-/// use iex::iex;
-/// use std::marker::PhantomData;
-///
-/// struct A<'a>(PhantomData<&'a ()>);
-///
-/// #[iex]
-/// fn good(a: A<'_>) -> Result<(), ()> { Ok(()) }
-///
-/// // #[iex]
-/// // fn bad(a: A) -> Result<(), ()> { Ok(()) }
-/// ```
-///
-/// This is the conventional way to specify elided lifetimes on structs, so it shouldn't be a
-/// nuisance.
-///
-/// Additionally, if an associated function captures the lifetime from the `impl` block that is not
-/// mentioned in its signature, this lifetime must be specified explicitly:
-///
-/// ```
-/// use iex::iex;
-/// use std::marker::PhantomData;
-///
-/// struct Ref<'a, T>(Option<&'a T>);
-///
-/// impl<'a, T: Clone> Ref<'a, T> {
-///     fn get(self) -> Result<T, ()> {
-///         self.0.cloned().ok_or(())
-///     }
-/// }
-/// ```
-///
-/// Don't waste time adding the capture clause everywhere, just look out for errors like this one:
-///
-/// ```text
-/// error[E0700]: hidden type for `impl Outcome` captures lifetime that does not appear in bounds
-///   --> src/lib.rs:130:5
-///    |
-/// 10 |   impl<'a, T: Clone> Ref<'a, T> {
-///    |        -- hidden type `IexResult<..>` captures the lifetime `'a` as defined here
-/// 11 |       #[iex]
-///    |       ------ opaque type defined here
-/// 12 | /     fn get(self) -> Result<T, ()> {
-/// 13 | |         self.0.cloned().ok_or(())
-/// 14 | |     }
-///    | |_____^
-/// ```
-///
-/// ## Closures
-///
-/// `#[iex]` closures can't take arguments whose types contain non-`'static` lifetimes. Sorry. Also,
-/// you need the nightly features
+/// Closure support is nightly-only and requires features
 /// [`stmt_expr_attributes`](https://github.com/rust-lang/rust/issues/15701) and
-/// [`proc_macro_hygiene`](https://github.com/rust-lang/rust/issues/54727) to be enabled.
+/// [`proc_macro_hygiene`](https://github.com/rust-lang/rust/issues/54727).
 ///
 /// ## `?` in macros
 ///

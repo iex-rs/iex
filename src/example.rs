@@ -13,6 +13,10 @@ impl HasIexMethod {
     }
 }
 
+// fn f() {
+//     HasIexMethod::iex_method().map_err(|x| x);
+// }
+
 /// Fallible talking.
 pub trait SayHello {
     /// Say hello.

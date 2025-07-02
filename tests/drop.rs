@@ -1,4 +1,4 @@
-use iex::{Outcome, iex};
+use iex::iex;
 
 struct Bomb;
 

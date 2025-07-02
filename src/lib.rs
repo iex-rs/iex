@@ -1,21 +1,100 @@
-//! Idiomatic exceptions.
+//! Unwinding-powered [`Result`]s.
 //!
-//! Speed up the happy path of your [`Result`]-based functions by seamlessly using exceptions for
-//! error propagation.
+//! Speed up your [`Result`]-based control flow in the `Ok` path by seamlessly using exceptions for
+//! error propagation, while retaining the monadic syntax beloved by Rust users.
 //!
-//! # Crash course
 //!
-//! Stick [`#[iex]`](macro@iex) on all the functions that return [`Result`] to make them return an
-//! efficiently propagatable `#[iex] Result`, apply `?` just like usual, and occasionally call
-//! [`.into_result()`](Outcome::into_result) when you need a real [`Result`]. It's that intuitive.
+//! # Example
 //!
-//! Compared to an algebraic [`Result`], `#[iex] Result` is asymmetric: it sacrifices the
-//! performance of error handling, and in return:
-//! - Gets rid of branching in the happy path,
-//! - Reduces memory usage by never explicitly storing the error or the enum discriminant,
-//! - Enables the compiler to use registers instead of memory when wrapping small objects in [`Ok`],
-//! - Cleanly separates the happy and unhappy paths in the machine code, resulting in better
-//!   instruction locality.
+//! ```
+//! use iex::iex;
+//!
+//! #[iex]
+//! fn checked_divide(a: u32, b: u32) -> Result<u32, &'static str> {
+//!     if b == 0 {
+//!         // Actually raises a custom panic
+//!         Err("Cannot divide by zero")
+//!     } else {
+//!         // Actually returns a / b directly
+//!         Ok(a / b)
+//!     }
+//! }
+//!
+//! #[iex]
+//! fn checked_divide_by_many_numbers(a: u32, bs: &[u32]) -> Result<Vec<u32>, &'static str> {
+//!     let mut results = Vec::new();
+//!     for &b in bs {
+//!         // Actually lets the panic bubble
+//!         results.push(checked_divide(a, b)?);
+//!     }
+//!     Ok(results)
+//! }
+//!
+//! fn main() {
+//!     // Actually catches the panic
+//!     let result = checked_divide_by_many_numbers(5, &[1, 2, 3, 0]).into_result();
+//!     assert_eq!(result, Err("Cannot divide by zero"));
+//! }
+//! ```
+//!
+//!
+//! # Usage
+//!
+//! Applying [`#[iex]`](macro@iex) to functions that return [`Result`]s makes them return
+//! the efficiently propagatable type `#[iex] Result` instead.
+//!
+//! This type is magical. **Immediately** after invoking the `#[iex]` function, you need to do one
+//! of the following:
+//!
+//! - Cast its return value to a normal [`Result`] by calling its `into_result` method, e.g.
+//!   `f().into_result()`.
+//! - Propagate the error with `?`, if within another `#[iex]` function, e.g. `f()?`. You can choose
+//!   to insert calls to the following methods between the function call and `?`:
+//!   - [`map_err`](Result::map_err) and [`inspect_err`](Result::inspect_err),
+//!   - [`context`](anyhow::Context::context) and [`with_context`](anyhow::Context::with_context)
+//!     from [`anyhow`],
+//!   - [`wrap_err`](eyre::WrapErr::wrap_err) and [`wrap_err_with`](eyre::WrapErr::wrap_err_with)
+//!     from [`eyre`].
+//! - Return the result, either implicitly or with `return`, if within another `#[iex]` function,
+//!   e.g. `return f()`. `map_err` and alike can also be used in this context.
+//!
+//! Note the word "immediately": `#[iex] Result` should not be stored in a variable or ignored.
+//! Behind the scenes, `#[iex] Result` contains a closure, and it's the act of applying `?` or
+//! calling `into_result` that triggers the actual call to the function. As such, `let _ = f();`
+//! will not invoke the body of `f` at all, and `let x = f(); g(); x` will invoke `g` first and `f`
+//! second.
+//!
+//! The sample snippet above shows the vision: `#[iex]` functions typically call other `#[iex]`
+//! functions, optionally add context to the error, and then propagate it with `?`. Complex error
+//! handling happens rarely in comparison and uses the somewhat slower `into_result` mechanism.
+//! `into_result` is also used when bridging between `#[iex]` and non-`#[iex]` functions -- this
+//! might be useful, for example, if you want to keep your public API simpler, but use `#[iex]`
+//! internally.
+//!
+//! [`#[iex]`](macro@iex) can be applied to methods. When working with traits, it needs to be
+//! applied both to declaration in `trait` and the definition in `impl` blocks. Traits with `#[iex]`
+//! methods are not object-safe, unless the method is restricted to `where Self: Sized` (open
+//! an issue if you want me to spend time developing a workaround).
+//!
+//!
+//! # Implementation and performance
+//!
+//! `#[iex]` uses [Lithium](lithium) to throw and catch exceptions. It's faster and generates less
+//! code than panics, especially with a nightly compiler.
+//!
+//! The invoked methods and the use of `?` vs `into_result` directly correspond to the lowering and
+//! its performance characteristics:
+//!
+//! - `f()?` and `return f()` don't catch the exception at all, implicitly letting it through.
+//! - `f().map_err(...)?` and alike catch and rethrow the exception, reusing its EH context.
+//! - `f().into_result()` catches the exception and destroys its EH context. Throwing further
+//!   exceptions, e.g. by `return` in  `return f().into_result();`, will need to allocate a new EH
+//!   context.
+//!
+//! Note that just blindly slapping `#[iex]` onto every single function might not improve your
+//! performance at best and will decrease it at worst. Like with every other optimization, it is
+//! critical to profile code and measure performance on realistic data.
+//!
 //!
 //! # Benchmark
 //!
@@ -80,66 +159,6 @@
 //! perform actions other than throwing errors, and the slowness of the error path is offset by the
 //! increased speed of the happy path. For JSON parsing in particular, the break-even point is 1
 //! error per 30-100k bytes parsed, depending on the data.
-//!
-//! Note that just blindly slapping [`#[iex]`](macro@iex) onto every single function might not
-//! increase your performance at best and will decrease it at worst. Like with every other
-//! optimization, it is critical to profile code and measure performance on realistic data.
-//!
-//! # Example
-//!
-//! ```
-//! use iex::{iex, Outcome};
-//!
-//! #[iex]
-//! fn checked_divide(a: u32, b: u32) -> Result<u32, &'static str> {
-//!     if b == 0 {
-//!         // Actually raises a custom panic
-//!         Err("Cannot divide by zero")
-//!     } else {
-//!         // Actually returns a / b directly
-//!         Ok(a / b)
-//!     }
-//! }
-//!
-//! #[iex]
-//! fn checked_divide_by_many_numbers(a: u32, bs: &[u32]) -> Result<Vec<u32>, &'static str> {
-//!     let mut results = Vec::new();
-//!     for &b in bs {
-//!         // Actually lets the panic bubble
-//!         results.push(checked_divide(a, b)?);
-//!     }
-//!     Ok(results)
-//! }
-//!
-//! fn main() {
-//!     // Actually catches the panic
-//!     let result = checked_divide_by_many_numbers(5, &[1, 2, 3, 0]).into_result();
-//!     assert_eq!(result, Err("Cannot divide by zero"));
-//! }
-//! ```
-//!
-//! # All you need to know
-//!
-//! Functions marked [`#[iex]`](macro@iex) are supposed to return a [`Result<T, E>`] in their
-//! definition. The macro rewrites them to return an opaque type `#[iex] Result<T, E>` instead. This
-//! type implements [`Outcome`], so you can call methods like [`map_err`](Outcome::map_err), but
-//! other than that, you must immediately propagate the error via `?`.
-//!
-//! Alternatively, you can cast it to a [`Result`] via [`.into_result()`](Outcome::into_result).
-//! This is the only way to avoid immediate propagation.
-//!
-//! Doing anything else to the return value, e.g. storing it in a variable and using it later will
-//! not cause UB, but will not work the way you think either. If you want to swallow the error, use
-//! `let _ = func().into_result();` instead.
-//!
-//! Directly returning an `#[iex] Result` (obtained from a function call) from another
-//! [`#[iex]`](macro@iex) function also works, provided that it's the only `return` statement in the
-//! function. Use `Ok(..?)` if there are multiple returns.
-//!
-//! [`#[iex]`](macro@iex) works on methods. If applied to a function in an `impl Trait for Type`
-//! block, the corresponding function in the `trait Trait` block should also be marked with
-//! [`#[iex]`](macro@iex). Such traits are not object-safe, unless the method is restricted to
-//! `where Self: Sized` (open an issue if you want me to spend time developing a workaround).
 
 #![cfg_attr(doc, feature(doc_auto_cfg))]
 
@@ -147,6 +166,7 @@ mod macros;
 pub use macros::iex;
 
 mod outcome;
+#[doc(hidden)]
 pub use outcome::Outcome;
 
 mod iex_result;

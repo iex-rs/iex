@@ -1,5 +1,5 @@
 use proc_macro2::{Span, TokenStream};
-use quote::{quote, quote_spanned};
+use quote::quote_spanned;
 use std::collections::HashMap;
 use syn::spanned::Spanned;
 use syn::{
@@ -88,12 +88,13 @@ fn generic_unwrap(outcome: Expr, error_type: ErrorType) -> Expr {
     let phantom = error_type.phantom();
     // Insert `Into` conversion only for `e?`, not `return e`.
     let method = match error_type {
-        ErrorType::ForReturn => quote!(unwrap_or_throw),
-        ErrorType::ForTry => quote!(unwrap_or_throw_with_conversion),
+        ErrorType::ForReturn => quote_spanned!(outcome.span()=> unwrap_or_throw),
+        ErrorType::ForTry => quote_spanned!(outcome.span()=> unwrap_or_throw_with_conversion),
     };
-    Expr::Verbatim(quote_spanned! {Span::mixed_site()=> {
-        let outcome = #outcome;
-        unsafe { ::iex::Outcome::#method(outcome, #phantom) }
+    Expr::Verbatim(quote_spanned! {outcome.span()=> {
+        // Cannot use hygiene here because it'll mess up error origin formatting
+        let __iex_outcome = #outcome;
+        unsafe { ::iex::Outcome::#method(__iex_outcome, #phantom) }
     }})
 }
 
@@ -299,43 +300,68 @@ impl Fold for Rewrite<'_> {
                 ..
             }) if matches!(
                 &*method.to_string(),
-                "map_err" | "inspect_err" | "context" | "with_context",
+                "map_err"
+                    | "inspect_err"
+                    | "context"
+                    | "with_context"
+                    | "wrap_err"
+                    | "wrap_err_with",
             ) && args.len() == 1
                 && self.do_unwrap_value.is_some() =>
             {
                 let arg = args.pop().unwrap();
 
-                let err = quote_spanned!(Span::mixed_site()=> err);
                 let error_type = self.do_unwrap_value.unwrap();
                 let phantom = error_type.phantom();
 
                 let rethrow = match error_type {
-                    ErrorType::ForReturn => quote_spanned! {Span::mixed_site()=>
-                        handle.rethrow(rethrown_err, #phantom)
+                    ErrorType::ForReturn => quote_spanned! {outcome.span()=>
+                        __iex_handle.rethrow(__iex_rethrown_err, #phantom)
                     },
-                    ErrorType::ForTry => quote_spanned! {Span::mixed_site()=>
-                        handle.rethrow(::core::convert::Into::into(rethrown_err), #phantom)
+                    ErrorType::ForTry => quote_spanned! {outcome.span()=>
+                        __iex_handle.rethrow(
+                            ::core::convert::Into::into(__iex_rethrown_err),
+                            #phantom,
+                        )
                     },
                 };
 
                 let rethrown_err = match &*method.to_string() {
-                    "map_err" => quote_spanned!(method.span()=> (#arg)(#err)),
-                    "inspect_err" => quote_spanned!(method.span()=> { (#arg)(&#err); #err }),
+                    "map_err" => quote_spanned!(method.span()=> (#arg)(__iex_err)),
+                    "inspect_err" => quote_spanned! { method.span()=> {
+                        (#arg)(&__iex_err);
+                        __iex_err
+                    }},
                     "context" => quote_spanned! {method.span()=>
-                        ::core::result::Result::Err::<(), _>(#err).context(#arg).unwrap_err()
+                        ::core::result::Result::Err::<(), _>(__iex_err)
+                            .context(#arg)
+                            .unwrap_err()
                     },
                     "with_context" => quote_spanned! {method.span()=>
-                        ::core::result::Result::Err::<(), _>(#err).with_context(#arg).unwrap_err()
+                        ::core::result::Result::Err::<(), _>(__iex_err)
+                            .with_context(#arg)
+                            .unwrap_err()
+                    },
+                    "wrap_err" => quote_spanned! {method.span()=>
+                        ::core::result::Result::Err::<(), _>(__iex_err)
+                            .wrap_err(#arg)
+                            .unwrap_err()
+                    },
+                    "wrap_err_with" => quote_spanned! {method.span()=>
+                        ::core::result::Result::Err::<(), _>(__iex_err)
+                            .wrap_err_with(#arg)
+                            .unwrap_err()
                     },
                     _ => unreachable!(),
                 };
 
-                Expr::Verbatim(quote_spanned! {Span::mixed_site()=> {
-                    let outcome = #outcome;
-                    match unsafe { ::iex::Outcome::intercept(outcome) } {
-                        Ok(value) => value,
-                        Err((err, handle)) => {
-                            let rethrown_err = #rethrown_err;
+                Expr::Verbatim(quote_spanned! {outcome.span()=> {
+                    // Cannot use hygiene here because it'll mess up error origin formatting
+                    let __iex_outcome = #outcome;
+                    match unsafe { ::iex::Outcome::intercept(__iex_outcome) } {
+                        Ok(__iex_value) => __iex_value,
+                        Err((__iex_err, __iex_handle)) => {
+                            let __iex_rethrown_err = #rethrown_err;
                             unsafe { #rethrow }
                         }
                     }

@@ -155,7 +155,7 @@ pub fn transform_closure(input: ExprClosure) -> TokenStream {
 
     let wrapper_closure = ExprClosure {
         attrs: vec![parse_quote!(#[inline(always)])],
-        output: ReturnType::Default,
+        output: result_to_outcome(input.output),
         body: Box::new(closure_to_iex_result(input_span, closure)),
         ..input
     };
@@ -164,39 +164,15 @@ pub fn transform_closure(input: ExprClosure) -> TokenStream {
 }
 
 fn result_to_outcome(result: ReturnType) -> ReturnType {
-    // We have to output this mess:
-    //     impl Outcome<
-    //         Output = <Result<T, E> as Outcome>::Output,
-    //         Error = <Result<T, E> as Outcome>::Error
-    //     >
-    // ...instead of something like:
-    //     impl Outcome<Like = Result<T, E>>
-    // because the only way to extract `T` and `E` from such an associated type `Like` is via
-    // a trait, and the trait solver cannot see through such shenanigans and emits nonsense like
-    // "`<Result<T, E> as ResultTrait>::Output` is not equal to `T`". Yes, this blows up code size.
-
-    // It's also important not to add `#result_type: ::iex::Outcome` to the `where` condition. That
-    // would confuse the type checker, leading it to think `#result_type::Output` is an unexpandable
-    // associated type even if `#result_type` is as simple as `Result<T, E>`. A simpler example that
-    // exhibits this behavior is:
-    //     trait Trait {
-    //         type Exact;
-    //     }
-    //     impl<T> Trait for T {
-    //         type Exact = T;
-    //     }
-    //     fn f<T: Trait>() {
-    //         let x: <T as Trait>::Exact = loop {};
-    //         let y: T = x;
-    //     }
-
     match result {
         ReturnType::Default => ReturnType::Default,
         ReturnType::Type(_, result_type) => {
+            // This needs to use the span of `iex-derive`, not the original crate, because we want
+            // to force the edition 2024 RPIT lifetime capturing mechanics.
             parse_quote! {
-                -> impl ::iex::Outcome<
-                    Output = <#result_type as ::iex::Outcome>::Output,
-                    Error = <#result_type as ::iex::Outcome>::Error,
+                -> ::iex::IexResult<
+                    impl FnOnce() -> <#result_type as ::iex::Outcome>::Output,
+                    <#result_type as ::iex::Outcome>::Error,
                 >
             }
         }

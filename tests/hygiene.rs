@@ -1,4 +1,4 @@
-use iex::{Outcome, iex};
+use iex::iex;
 
 #[iex]
 fn phantoms(try_phantom: i32, return_phantom: i32) -> Result<i32, ()> {

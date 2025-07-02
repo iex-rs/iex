@@ -1,4 +1,4 @@
-use iex::{Outcome, iex};
+use iex::iex;
 
 fn result_divide(a: u32, b: u32) -> Result<u32, &'static str> {
     if b == 0 {

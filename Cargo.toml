@@ -2,7 +2,7 @@
 name = "iex"
 version = "0.2.0"
 authors = ["Alisa Sireneva <me@purplesyringa.moe>"]
-edition = "2024"
+edition = "2021"
 description = "Idiomatic exceptions"
 documentation = "https://docs.rs/iex"
 repository = "https://github.com/iex-rs/iex"
@@ -11,13 +11,19 @@ keywords = ["ergonomic", "error", "panic"]
 categories = ["rust-patterns"]
 
 [dependencies]
+anyhow = { version = "1", optional = true }
+eyre = { version = "0.6.12", optional = true }
 iex-derive = { path = "iex-derive", version = "0.2.0" }
 lithium = { path = "../lithium" }
 typeid = "1.0.0"
 
 [dev-dependencies]
-anyhow = "1"
 criterion = "0.5"
+
+[features]
+# `cargo doc` ignores dev dependencies, so we have to use a feature to refer to these crates from
+# docs.
+dev = ["dep:anyhow", "dep:eyre"]
 
 [package.metadata.docs.rs]
 all-features = true
