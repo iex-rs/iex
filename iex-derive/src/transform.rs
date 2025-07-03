@@ -104,7 +104,7 @@ pub fn transform_item_fn(input: ItemFn) -> TokenStream {
         parse_quote!(#[inline(always)]),
     ]);
 
-    let body = closure_to_iex_result(input_span, closure);
+    let body = closure_to_iex_result(input_span, closure, input.sig.output.clone());
     let wrapper_fn = ItemFn {
         attrs: wrapper_attrs,
         vis: input.vis.clone(),
@@ -166,8 +166,8 @@ pub fn transform_closure(input: ExprClosure) -> TokenStream {
 
     let wrapper_closure = ExprClosure {
         attrs: vec![parse_quote!(#[inline(always)])],
-        output: adjust_return_type(input.output),
-        body: Box::new(closure_to_iex_result(input_span, closure)),
+        output: adjust_return_type(input.output.clone()),
+        body: Box::new(closure_to_iex_result(input_span, closure, input.output)),
         ..input
     };
 
@@ -191,20 +191,21 @@ fn adjust_return_type(result: ReturnType) -> ReturnType {
     }
 }
 
-fn closure_to_iex_result(input_span: Span, closure: ExprClosure) -> Expr {
-    let return_phantom: Ident = parse_quote_spanned!(Span::mixed_site()=> return_phantom);
+fn closure_to_iex_result(input_span: Span, closure: ExprClosure, result: ReturnType) -> Expr {
+    let ok_type = match result {
+        ReturnType::Default => quote!(_),
+        ReturnType::Type(_, result_type) => quote!(<#result_type as ::iex::Outcome>::Output),
+    };
+
     let try_phantom: Ident = parse_quote_spanned!(Span::mixed_site()=> try_phantom);
 
     // This span is required for dead code diagnostic.
     parse_quote_spanned! { input_span=> {
-        // Effectively a type variable equivalent to the error type. Used for type inference in `?`
-        // codegen.
-        let #return_phantom = ::core::marker::PhantomData;
-        let #try_phantom = #return_phantom;
-
-        ::iex::IexResult {
-            closure: #closure,
-            phantom: #return_phantom,
-        }
+        // Effectively type variables. Used for type inference in codegen. `Ok` type needs to be
+        // specified explicitly to correctly infer return types within the closure from `Ok`, not
+        // vice versa.
+        let __iex_return_phantom = ::iex::phantoms::ReturnPhantom::<#ok_type, _>::new();
+        let #try_phantom = __iex_return_phantom.to_try_phantom();
+        ::iex::IexResult::new(#closure, __iex_return_phantom)
     }}
 }

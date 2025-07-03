@@ -1,15 +1,25 @@
-use crate::{Outcome, RethrowHandle, Try};
+use crate::{
+    phantoms::{ReturnPhantom, TryPhantom},
+    Like, Outcome, RethrowHandle, Return, Try,
+};
 use core::marker::PhantomData;
 
 pub struct IexResult<Func, E> {
-    pub closure: Func,
-    pub phantom: PhantomData<fn() -> E>,
+    closure: Func,
+    _try_phantom: PhantomData<E>,
 }
 
 impl<Func: FnOnce() -> T, T, E> IexResult<Func, E> {
+    pub fn new(closure: Func, _phantom: ReturnPhantom<T, E>) -> Self {
+        Self {
+            closure,
+            _try_phantom: PhantomData,
+        }
+    }
+
     /// Cast `#[iex] Result` to [`Result`].
     pub fn into_result(self) -> Result<T, E> {
-        lithium::catch(|| unsafe { self.unwrap_or_throw(PhantomData) })
+        lithium::catch(|| unsafe { self.unwrap_or_throw(TryPhantom::new()) })
     }
 }
 
@@ -18,12 +28,12 @@ impl<Func: FnOnce() -> T, T, E> Outcome for IexResult<Func, E> {
     type Error = E;
     type RethrowHandle = IexResultRethrowHandle<E>;
 
-    unsafe fn unwrap_or_throw(self, _phantom: PhantomData<fn() -> E>) -> T {
+    unsafe fn unwrap_or_throw(self, _phantom: TryPhantom<E>) -> T {
         (self.closure)()
     }
 
     unsafe fn intercept(self) -> Result<T, (E, IexResultRethrowHandle<E>)> {
-        match lithium::intercept(|| unsafe { self.unwrap_or_throw(PhantomData) }) {
+        match lithium::intercept(|| unsafe { self.unwrap_or_throw(TryPhantom::new()) }) {
             Ok(value) => Ok(value),
             Err((err, handle)) => Err((err, IexResultRethrowHandle(handle))),
         }
@@ -32,6 +42,16 @@ impl<Func: FnOnce() -> T, T, E> Outcome for IexResult<Func, E> {
 
 #[diagnostic::do_not_recommend]
 impl<Func: FnOnce() -> T, T, E> Try for IexResult<Func, E> {}
+
+#[diagnostic::do_not_recommend]
+impl<T1, E1, Func: FnOnce() -> T2, T2, E2> Like<Result<T1, E1>> for IexResult<Func, E2> {
+    type This = Self;
+}
+
+#[diagnostic::do_not_recommend]
+impl<Func: FnOnce() -> T, T, E> Return<T, E, T, E> for IexResult<Func, E> {
+    type This = Self;
+}
 
 pub struct IexResultRethrowHandle<E>(lithium::InFlightException<E>);
 

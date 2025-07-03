@@ -1,17 +1,5 @@
 use iex::iex;
 
-// #[iex]
-// fn wrong_return_type(cond: bool) -> Result<i32, i32> {
-//     if cond {
-//         return 42;
-//     }
-
-//     "meow"
-// }
-// fn f() {
-//     unsafe { ::iex::Outcome::unwrap_or_throw(1, ::core::marker::PhantomData) }
-// }
-
 #[iex]
 fn identity<T>(a: T) -> Result<T, ()> {
     Ok(a)

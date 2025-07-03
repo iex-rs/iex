@@ -1,36 +1,57 @@
-error[E0277]: the `?` operator can only be applied to `Result` or `#[iex] Result`
- --> tests/ui/wrong_try_type.rs:5:5
-  |
-5 |     10?;
-  |     ^^ the `?` operator cannot be applied to type `{integer}`
-  |
-  = help: the trait `iex::Try` is not implemented for `{integer}`
+error[E0277]: the `?` operator can only be applied to `Result`
+  --> tests/ui/wrong_try_type.rs:10:5
+   |
+10 |     10?;
+   |     ^^ the `?` operator cannot be applied to type `{integer}`
+   |
+   = help: the trait `iex::Try` is not implemented for `{integer}`
 
-error[E0277]: the `?` operator can only be applied to `Result` or `#[iex] Result`
- --> tests/ui/wrong_try_type.rs:6:5
-  |
-6 |     None?;
-  |     ^^^^ the `?` operator cannot be applied to type `Option<_>`
-  |
-  = help: the trait `iex::Try` is not implemented for `Option<_>`
+error[E0277]: the `?` operator can only be applied to `Result`
+  --> tests/ui/wrong_try_type.rs:11:5
+   |
+11 |     None?;
+   |     ^^^^ the `?` operator cannot be applied to type `Option<_>`
+   |
+   = help: the trait `iex::Try` is not implemented for `Option<_>`
 
 error[E0277]: `?` couldn't convert the error to `i32`
- --> tests/ui/wrong_try_type.rs:7:5
-  |
-7 |     Err("")?;
-  |     ^^^^^^^ the trait `From<&str>` is not implemented for `i32`
-  |
-  = note: this can't be annotated with `?` because it has type `Result<_, &str>`
-  = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
-  = help: the following other types implement trait `From<T>`:
-            `i32` implements `From<bool>`
-            `i32` implements `From<i16>`
-            `i32` implements `From<i8>`
-            `i32` implements `From<u16>`
-            `i32` implements `From<u8>`
-  = note: required for `i32` to implement `iex::traits::ThrowFromOutcome<Result<_, &str>>`
+  --> tests/ui/wrong_try_type.rs:12:5
+   |
+12 |     Err("")?;
+   |     ^^^^^^^ the trait `From<&str>` is not implemented for `i32`
+   |
+   = note: this can't be annotated with `?` because it has type `Result<_, &str>`
+   = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+   = help: the following other types implement trait `From<T>`:
+             `i32` implements `From<bool>`
+             `i32` implements `From<i16>`
+             `i32` implements `From<i8>`
+             `i32` implements `From<u16>`
+             `i32` implements `From<u8>`
+   = note: required for `i32` to implement `iex::traits::ThrowFromOutcome<_, &str>`
 note: required by a bound in `do_try`
- --> src/traits.rs
-  |
-  |     unsafe fn do_try<F: ThrowFromOutcome<Self>>(
-  |                         ^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Try::do_try`
+  --> src/traits.rs
+   |
+   |     unsafe fn do_try<F: ThrowFromOutcome<Self::Output, Self::Error>>(
+   |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Try::do_try`
+
+error[E0277]: `?` couldn't convert the error to `i32`
+  --> tests/ui/wrong_try_type.rs:13:5
+   |
+13 |     f()?;
+   |     ^^^ the trait `From<&str>` is not implemented for `i32`
+   |
+   = note: this can't be annotated with `?` because it has type `Result<(), &str>`
+   = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+   = help: the following other types implement trait `From<T>`:
+             `i32` implements `From<bool>`
+             `i32` implements `From<i16>`
+             `i32` implements `From<i8>`
+             `i32` implements `From<u16>`
+             `i32` implements `From<u8>`
+   = note: required for `i32` to implement `iex::traits::ThrowFromOutcome<(), &str>`
+note: required by a bound in `do_try`
+  --> src/traits.rs
+   |
+   |     unsafe fn do_try<F: ThrowFromOutcome<Self::Output, Self::Error>>(
+   |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Try::do_try`

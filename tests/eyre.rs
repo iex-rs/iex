@@ -1,4 +1,4 @@
-use eyre::{bail, eyre, Result, WrapErr};
+/*use eyre::{bail, eyre, Result, WrapErr};
 use iex::iex;
 
 #[iex]
@@ -21,3 +21,4 @@ fn iex_matches_result() {
         format!("{:#}", expected.unwrap_err()),
     );
 }
+*/

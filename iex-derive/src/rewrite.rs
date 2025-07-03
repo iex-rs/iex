@@ -1,5 +1,5 @@
 use proc_macro2::{Span, TokenStream};
-use quote::quote_spanned;
+use quote::{quote, quote_spanned};
 use std::collections::HashMap;
 use syn::spanned::Spanned;
 use syn::{
@@ -19,7 +19,7 @@ impl ErrorType {
     // `return e`.
     fn phantom(self) -> TokenStream {
         match self {
-            Self::ForReturn => quote_spanned!(Span::mixed_site()=> return_phantom),
+            Self::ForReturn => quote!(__iex_return_phantom),
             Self::ForTry => quote_spanned!(Span::mixed_site()=> try_phantom),
         }
     }
@@ -85,21 +85,32 @@ fn stmt_is_expr_like(node: &Stmt) -> bool {
 }
 
 fn generic_unwrap(outcome: Expr, error_type: ErrorType) -> Expr {
-    let phantom = error_type.phantom();
     // Insert `From` conversion only for `e?`, not `return e`.
-    let method = match error_type {
-        ErrorType::ForReturn => quote_spanned! { outcome.span()=>
-            ::iex::Outcome::unwrap_or_throw
-        },
-        ErrorType::ForTry => quote_spanned!(outcome.span()=> ::iex::Try::do_try),
-    };
-    Expr::Verbatim(quote_spanned! {outcome.span()=> {
-        // Cannot use hygiene or resolved_at here because it'll mess up error origin formatting.
-        let __iex_outcome = #outcome;
-        // `identity` required because rustc messes up reporting otherwise, see
-        // https://github.com/rust-lang/rust/issues/143336
-        unsafe { #method(__iex_outcome, ::core::convert::identity(#phantom)) }
-    }})
+    // Cannot use hygiene or resolved_at here because it'll mess up error origin formatting.
+    // The call to `core::convert::identity` is required to workaround
+    // https://github.com/rust-lang/rust/issues/143336
+    match error_type {
+        ErrorType::ForReturn => Expr::Verbatim(quote_spanned! {outcome.span()=> {
+            let __iex_outcome = #outcome;
+            // Deliberately break the method call chain to stop rustc from emitting
+            // "the method call chain might not have had the expected associated types" by wrapping
+            // a value in a tuple.
+            unsafe {
+                __iex_return_phantom.do_return(
+                    (__iex_return_phantom.assert_is_outcome(__iex_outcome),).0,
+                )
+            }
+        }}),
+        ErrorType::ForTry => {
+            let try_phantom = quote_spanned!(Span::mixed_site()=> try_phantom);
+            Expr::Verbatim(quote_spanned! {outcome.span()=> {
+                let __iex_outcome = #outcome;
+                unsafe {
+                    ::iex::Try::do_try(__iex_outcome, ::core::convert::identity(#try_phantom))
+                }
+            }})
+        }
+    }
 }
 
 pub fn rewrite_block(block: Block, do_unwrap_value: Option<ErrorType>) -> Block {
