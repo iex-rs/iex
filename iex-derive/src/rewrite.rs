@@ -3,7 +3,7 @@ use quote::quote_spanned;
 use std::collections::HashMap;
 use syn::spanned::Spanned;
 use syn::{
-    Block, Expr, ExprMacro, ExprMethodCall, Label, Lifetime, Stmt, StmtMacro,
+    Block, Expr, ExprBlock, ExprMacro, ExprMethodCall, Label, Lifetime, Stmt, StmtMacro,
     fold::{Fold, fold_expr, fold_stmt},
 };
 
@@ -87,8 +87,6 @@ fn stmt_is_expr_like(node: &Stmt) -> bool {
 fn generic_unwrap(outcome: Expr, error_type: ErrorType) -> Expr {
     // Insert `From` conversion only for `e?`, not `return e`.
     // Cannot use hygiene or resolved_at here because it'll mess up error origin formatting.
-    // The call to `core::convert::identity` is required to workaround
-    // https://github.com/rust-lang/rust/issues/143336
     match error_type {
         ErrorType::ForReturn => {
             let return_phantom = quote_spanned!(Span::mixed_site()=> return_phantom);
@@ -178,18 +176,26 @@ impl Fold for Rewrite<'_> {
             })
             .collect();
 
-        // Add implicit `()` to the end of blocks that don't end with an expression so that we can
-        // error on `()?`
+        // If the block needs to be unwrapped, but doesn't end with an expression, unwrap it
+        // directly. If it returns `()`, we'll correctly emit an error. If it diverges, we'll get
+        // a fallback to `!` and correctly compile the unwrapping to a no-op.
         if propagate_value_from_expr.is_none()
             && let Some(error_type) = self.do_unwrap_value
         {
-            block.stmts.push(Stmt::Expr(
-                generic_unwrap(
-                    Expr::Verbatim(quote_spanned!(block.span()=> ())),
-                    error_type,
-                ),
-                None,
-            ));
+            block = Block {
+                brace_token: block.brace_token.clone(),
+                stmts: vec![Stmt::Expr(
+                    generic_unwrap(
+                        Expr::Block(ExprBlock {
+                            attrs: Vec::new(),
+                            label: None,
+                            block,
+                        }),
+                        error_type,
+                    ),
+                    None,
+                )],
+            }
         }
 
         block
