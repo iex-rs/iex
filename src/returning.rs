@@ -15,58 +15,53 @@ use core::marker::PhantomData;
     message = "mismatched types",
     label = "expected `{Expected}`, found `{Self}`"
 )]
-pub trait AnyReturn<Expected>: Sized {
-    // A type-level proof that `Self: Outcome`.
-    type This: From<Self> + Outcome;
+pub trait AnyReturn<Expected>: Outcome {
     // `Result<Self::Output, Self::Error>`.
     type AsResult;
 }
 
 #[diagnostic::do_not_recommend]
 impl<Expected, T, E> AnyReturn<Expected> for Result<T, E> {
-    type This = Self;
     type AsResult = Result<T, E>;
 }
 
 #[diagnostic::do_not_recommend]
 impl<Expected, Func: FnOnce() -> T, T, E> AnyReturn<Expected> for IexResult<Func, E> {
-    type This = Self;
     type AsResult = Result<T, E>;
 }
 
 #[diagnostic::do_not_recommend]
 impl<Expected> AnyReturn<Expected> for Never {
-    type This = Self;
     type AsResult = Result<Never, Never>;
 }
 
 #[diagnostic::on_unimplemented(
     message = "mismatched types",
-    label = "expected `Result<{T}, {E}>`, found `{AsResult}`"
+    label = "expected `Result<{T}, {E}>`, found `{Self}`"
 )]
-pub trait Return<T, E, AsResult>: Sized {
-    fn into_outcome(self) -> impl Outcome<Output = T, Error = E>;
+pub trait Return<T, E, R>: Sized {
+    fn map_outcome(outcome: R) -> impl Outcome<Output = T, Error = E>;
 }
 
 #[diagnostic::do_not_recommend]
 impl<T, E> Return<T, E, Result<T, E>> for Result<T, E> {
-    fn into_outcome(self) -> impl Outcome<Output = T, Error = E> {
-        self
+    fn map_outcome(outcome: Result<T, E>) -> impl Outcome<Output = T, Error = E> {
+        outcome
     }
 }
 
 #[diagnostic::do_not_recommend]
-impl<Func: FnOnce() -> T, T, E> Return<T, E, Result<T, E>> for IexResult<Func, E> {
-    fn into_outcome(self) -> impl Outcome<Output = T, Error = E> {
-        self
+impl<Func: FnOnce() -> T, T, E> Return<T, E, IexResult<Func, E>> for Result<T, E> {
+    fn map_outcome(outcome: IexResult<Func, E>) -> impl Outcome<Output = T, Error = E> {
+        outcome
     }
 }
 
 #[diagnostic::do_not_recommend]
-impl<T, E> Return<T, E, Result<Never, Never>> for Never {
+impl<T, E> Return<T, E, Never> for Result<Never, Never> {
     #[allow(unreachable_code)]
-    fn into_outcome(self) -> impl Outcome<Output = T, Error = E> {
-        self as Result<T, E>
+    fn map_outcome(outcome: Never) -> impl Outcome<Output = T, Error = E> {
+        outcome as Result<T, E>
     }
 }
 
@@ -81,15 +76,11 @@ impl<T, E> ReturnPhantom<T, E> {
         TryPhantom::new()
     }
 
-    pub unsafe fn do_return<R: AnyReturn<Result<T, E>, This: Return<T, E, R::AsResult>>>(
+    pub unsafe fn do_return<R: AnyReturn<Result<T, E>, AsResult: Return<T, E, R>>>(
         self,
         outcome: R,
     ) -> T {
-        unsafe {
-            R::This::from(outcome)
-                .into_outcome()
-                .unwrap_or_throw(self.to_try_phantom())
-        }
+        unsafe { R::AsResult::map_outcome(outcome).unwrap_or_throw(self.to_try_phantom()) }
     }
 }
 
