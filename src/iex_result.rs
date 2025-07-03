@@ -1,6 +1,6 @@
 use crate::{
     returning::ReturnPhantom,
-    traits::{Outcome, Propagate, RethrowHandle},
+    traits::{Outcome, RethrowHandle},
     trying::TryPhantom,
 };
 use core::marker::PhantomData;
@@ -27,9 +27,6 @@ impl<Func: FnOnce() -> T, T, E> IexResult<Func, E> {
 impl<Func: FnOnce() -> T, T, E> Outcome for IexResult<Func, E> {
     type Output = T;
     type Error = E;
-}
-
-impl<Func: FnOnce() -> T, T, E> Propagate<T, E> for IexResult<Func, E> {
     type RethrowHandle = IexResultRethrowHandle<E>;
 
     unsafe fn unwrap_or_throw(self, _phantom: TryPhantom<E>) -> T {

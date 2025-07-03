@@ -1,9 +1,4 @@
-use crate::{
-    never::Never,
-    traits::{Outcome, Propagate},
-    trying::TryPhantom,
-    IexResult,
-};
+use crate::{never::Never, traits::Outcome, trying::TryPhantom, IexResult};
 use core::marker::PhantomData;
 
 // When returning a mismatching type from a function, we want to show a readable error like
@@ -49,10 +44,31 @@ impl<Expected> AnyReturn<Expected> for Never {
     message = "mismatched types",
     label = "expected `Result<{T}, {E}>`, found `{AsResult}`"
 )]
-pub trait Return<T, E, AsResult>: Propagate<T, E> {}
+pub trait Return<T, E, AsResult>: Sized {
+    fn into_outcome(self) -> impl Outcome<Output = T, Error = E>;
+}
 
 #[diagnostic::do_not_recommend]
-impl<T, E, R: Outcome + Propagate<T, E>> Return<T, E, Result<R::Output, R::Error>> for R {}
+impl<T, E> Return<T, E, Result<T, E>> for Result<T, E> {
+    fn into_outcome(self) -> impl Outcome<Output = T, Error = E> {
+        self
+    }
+}
+
+#[diagnostic::do_not_recommend]
+impl<Func: FnOnce() -> T, T, E> Return<T, E, Result<T, E>> for IexResult<Func, E> {
+    fn into_outcome(self) -> impl Outcome<Output = T, Error = E> {
+        self
+    }
+}
+
+#[diagnostic::do_not_recommend]
+impl<T, E> Return<T, E, Result<Never, Never>> for Never {
+    #[allow(unreachable_code)]
+    fn into_outcome(self) -> impl Outcome<Output = T, Error = E> {
+        self as Result<T, E>
+    }
+}
 
 pub struct ReturnPhantom<T, E>(PhantomData<(T, E)>);
 
@@ -69,7 +85,11 @@ impl<T, E> ReturnPhantom<T, E> {
         self,
         outcome: R,
     ) -> T {
-        unsafe { R::This::from(outcome).unwrap_or_throw(self.to_try_phantom()) }
+        unsafe {
+            R::This::from(outcome)
+                .into_outcome()
+                .unwrap_or_throw(self.to_try_phantom())
+        }
     }
 }
 

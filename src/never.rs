@@ -1,5 +1,5 @@
 use crate::{
-    traits::{Outcome, Propagate, RethrowHandle},
+    traits::{Outcome, RethrowHandle},
     trying::TryPhantom,
 };
 
@@ -18,16 +18,13 @@ pub type Never = <fn() -> ! as FnOutput>::Output;
 impl Outcome for Never {
     type Output = Never;
     type Error = Never;
-}
-
-impl<T, E> Propagate<T, E> for Never {
     type RethrowHandle = Never;
 
-    unsafe fn unwrap_or_throw(self, _phantom: TryPhantom<E>) -> T {
+    unsafe fn unwrap_or_throw(self, _phantom: TryPhantom<Never>) -> Never {
         self
     }
 
-    unsafe fn intercept(self) -> Result<T, (E, Never)> {
+    unsafe fn intercept(self) -> Result<Never, (Never, Never)> {
         self
     }
 }

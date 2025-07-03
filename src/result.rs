@@ -1,14 +1,11 @@
 use crate::{
-    traits::{Outcome, Propagate, RethrowHandle},
+    traits::{Outcome, RethrowHandle},
     trying::TryPhantom,
 };
 
 impl<T, E> Outcome for Result<T, E> {
     type Output = T;
     type Error = E;
-}
-
-impl<T, E> Propagate<T, E> for Result<T, E> {
     type RethrowHandle = ResultRethrowHandle;
 
     unsafe fn unwrap_or_throw(self, _phantom: TryPhantom<E>) -> T {

@@ -30,7 +30,9 @@ error[E0277]: mismatched types
 14 |     Ok("meow")
    |     ^^^^^^^^^^ expected `Result<i32, i32>`, found `Result<&str, _>`
    |
-   = help: the trait `iex::returning::Return<i32, i32, Result<&str, _>>` is not implemented for `Result<&str, _>`
+   = help: the trait `Return<i32, i32, Result<&str, _>>` is not implemented for `Result<&str, _>`
+           but trait `Return<&str, i32, Result<&str, i32>>` is implemented for `Result<&str, i32>`
+   = help: for that trait implementation, expected `&str`, found `i32`
 note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return`
   --> src/returning.rs
    |
@@ -43,7 +45,9 @@ error[E0277]: mismatched types
 20 |         Ok("meow")
    |         ^^^^^^^^^^ expected `Result<i32, i32>`, found `Result<&str, _>`
    |
-   = help: the trait `iex::returning::Return<i32, i32, Result<&str, _>>` is not implemented for `Result<&str, _>`
+   = help: the trait `Return<i32, i32, Result<&str, _>>` is not implemented for `Result<&str, _>`
+           but trait `Return<&str, i32, Result<&str, i32>>` is implemented for `Result<&str, i32>`
+   = help: for that trait implementation, expected `&str`, found `i32`
 note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return`
   --> src/returning.rs
    |
@@ -56,7 +60,9 @@ error[E0277]: mismatched types
 22 |         Ok(false)
    |         ^^^^^^^^^ expected `Result<i32, i32>`, found `Result<bool, _>`
    |
-   = help: the trait `iex::returning::Return<i32, i32, Result<bool, _>>` is not implemented for `Result<bool, _>`
+   = help: the trait `Return<i32, i32, Result<bool, _>>` is not implemented for `Result<bool, _>`
+           but trait `Return<bool, i32, Result<bool, i32>>` is implemented for `Result<bool, i32>`
+   = help: for that trait implementation, expected `bool`, found `i32`
 note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return`
   --> src/returning.rs
    |
@@ -69,7 +75,9 @@ error[E0277]: mismatched types
 28 |     Err("meow")
    |     ^^^^^^^^^^^ expected `Result<i32, i32>`, found `Result<_, &str>`
    |
-   = help: the trait `iex::returning::Return<i32, i32, Result<_, &str>>` is not implemented for `Result<_, &str>`
+   = help: the trait `Return<i32, i32, Result<_, &str>>` is not implemented for `Result<_, &str>`
+           but trait `Return<i32, &str, Result<i32, &str>>` is implemented for `Result<i32, &str>`
+   = help: for that trait implementation, expected `&str`, found `i32`
 note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return`
   --> src/returning.rs
    |
@@ -82,7 +90,8 @@ error[E0277]: mismatched types
 38 |     f()
    |     ^^^ expected `Result<i32, i32>`, found `Result<(), &str>`
    |
-   = help: the trait `iex::returning::Return<i32, i32, Result<(), &str>>` is not implemented for `IexResult<impl FnOnce() -> <Result<(), &'static str> as Outcome>::Output, &str>`
+   = help: the trait `Return<i32, i32, Result<(), &str>>` is not implemented for `IexResult<impl FnOnce() -> <Result<(), &'static str> as Outcome>::Output, &str>`
+           but trait `Return<(), &str, Result<(), &str>>` is implemented for it
 note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return`
   --> src/returning.rs
    |

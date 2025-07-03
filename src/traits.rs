@@ -1,21 +1,11 @@
 use crate::trying::TryPhantom;
 
-// The trait hierarchy system is a bit confusing. A type implements `Outcome<Output = T, Error = E>`
-// if it's logically equivalent to `Result<T, E>`, and `Propagate<T, E>` if it can be logically
-// coerced to `Result<T, E>`. These things are usually equivalent, however, `!` implements
-// `Propagate<T, E>` for all `T, E`, but as an `Outcome`, it's equivalent to `Result<!, !>`. This
-// approach enables type inference for "normal" types while still letting `!` substitute for any
-// `Result<T, E>`.
-
-pub trait Outcome: Propagate<Self::Output, Self::Error> {
+pub trait Outcome {
     type Output;
     type Error;
-}
-
-pub trait Propagate<T, E>: Sized {
     type RethrowHandle: RethrowHandle;
-    unsafe fn unwrap_or_throw(self, phantom: TryPhantom<E>) -> T;
-    unsafe fn intercept(self) -> Result<T, (E, Self::RethrowHandle)>;
+    unsafe fn unwrap_or_throw(self, phantom: TryPhantom<Self::Error>) -> Self::Output;
+    unsafe fn intercept(self) -> Result<Self::Output, (Self::Error, Self::RethrowHandle)>;
 }
 
 pub trait RethrowHandle: Sized {
