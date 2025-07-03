@@ -8,13 +8,22 @@ use core::marker::PhantomData;
     message = "the `?` operator can only be applied to `Result`",
     label = "the `?` operator cannot be applied to type `{Self}`"
 )]
-pub trait Try: Outcome {}
+pub trait Try: Sized {
+    // Type-level proof that `Self: Outcome`. We can't just make `Outcome` a supertrait of `Try`
+    // because we want the `ThrowFromOutcome` bound on `do_try` to be non-well-formed if `Self = !`,
+    // which implements `Outcome` but not `Try`.
+    type This: From<Self> + Outcome;
+}
 
 #[diagnostic::do_not_recommend]
-impl<T, E> Try for Result<T, E> {}
+impl<T, E> Try for Result<T, E> {
+    type This = Self;
+}
 
 #[diagnostic::do_not_recommend]
-impl<Func: FnOnce() -> T, T, E> Try for IexResult<Func, E> {}
+impl<Func: FnOnce() -> T, T, E> Try for IexResult<Func, E> {
+    type This = Self;
+}
 
 #[diagnostic::on_unimplemented(
     message = "`?` couldn't convert the error to `{Self}`",
@@ -33,12 +42,13 @@ impl<E> TryPhantom<E> {
         Self(PhantomData)
     }
 
-    pub unsafe fn do_try<R: Try>(self, outcome: R) -> R::Output
+    pub unsafe fn do_try<R: Try>(self, outcome: R) -> <R::This as Outcome>::Output
     where
-        E: ThrowFromOutcome<R::Output, R::Error>,
+        E: ThrowFromOutcome<<R::This as Outcome>::Output, <R::This as Outcome>::Error>,
     {
+        let outcome = R::This::from(outcome);
         // This comparison will be optimized out.
-        if typeid::of::<E>() == typeid::of::<R::Error>() {
+        if typeid::of::<E>() == typeid::of::<<R::This as Outcome>::Error>() {
             // SAFETY: If we enter this conditional, `E` and `F` differ only in lifetimes. Lifetimes
             // are erased in runtime, so `impl From<E> for F` has the same implementation as
             // `impl From<T> for T` for some `T`, and that blanket implementation is a no-op.

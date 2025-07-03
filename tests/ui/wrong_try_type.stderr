@@ -8,7 +8,7 @@ error[E0277]: the `?` operator can only be applied to `Result`
 note: required by a bound in `iex::trying::TryPhantom::<E>::do_try`
   --> src/trying.rs
    |
-   |     pub unsafe fn do_try<R: Try>(self, outcome: R) -> R::Output
+   |     pub unsafe fn do_try<R: Try>(self, outcome: R) -> <R::This as Outcome>::Output
    |                             ^^^ required by this bound in `TryPhantom::<E>::do_try`
 
 error[E0277]: the `?` operator can only be applied to `Result`
@@ -21,7 +21,7 @@ error[E0277]: the `?` operator can only be applied to `Result`
 note: required by a bound in `iex::trying::TryPhantom::<E>::do_try`
   --> src/trying.rs
    |
-   |     pub unsafe fn do_try<R: Try>(self, outcome: R) -> R::Output
+   |     pub unsafe fn do_try<R: Try>(self, outcome: R) -> <R::This as Outcome>::Output
    |                             ^^^ required by this bound in `TryPhantom::<E>::do_try`
 
 error[E0277]: `?` couldn't convert the error to `i32`
@@ -42,11 +42,11 @@ error[E0277]: `?` couldn't convert the error to `i32`
 note: required by a bound in `iex::trying::TryPhantom::<E>::do_try`
   --> src/trying.rs
    |
-   |     pub unsafe fn do_try<R: Try>(self, outcome: R) -> R::Output
+   |     pub unsafe fn do_try<R: Try>(self, outcome: R) -> <R::This as Outcome>::Output
    |                   ------ required by a bound in this associated function
    |     where
-   |         E: ThrowFromOutcome<R::Output, R::Error>,
-   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `TryPhantom::<E>::do_try`
+   |         E: ThrowFromOutcome<<R::This as Outcome>::Output, <R::This as Outcome>::Error>,
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `TryPhantom::<E>::do_try`
 
 error[E0277]: `?` couldn't convert the error to `i32`
   --> tests/ui/wrong_try_type.rs:13:5
@@ -66,8 +66,8 @@ error[E0277]: `?` couldn't convert the error to `i32`
 note: required by a bound in `iex::trying::TryPhantom::<E>::do_try`
   --> src/trying.rs
    |
-   |     pub unsafe fn do_try<R: Try>(self, outcome: R) -> R::Output
+   |     pub unsafe fn do_try<R: Try>(self, outcome: R) -> <R::This as Outcome>::Output
    |                   ------ required by a bound in this associated function
    |     where
-   |         E: ThrowFromOutcome<R::Output, R::Error>,
-   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `TryPhantom::<E>::do_try`
+   |         E: ThrowFromOutcome<<R::This as Outcome>::Output, <R::This as Outcome>::Error>,
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `TryPhantom::<E>::do_try`

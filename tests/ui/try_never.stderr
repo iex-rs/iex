@@ -1,0 +1,23 @@
+warning: unreachable expression
+ --> tests/ui/try_never.rs:5:5
+  |
+5 |     panic!()?;
+  |     ^^^^^^^^
+  |     |
+  |     unreachable expression
+  |     any code following this expression is unreachable
+  |
+  = note: `#[warn(unreachable_code)]` on by default
+
+error[E0277]: the `?` operator can only be applied to `Result`
+ --> tests/ui/try_never.rs:5:5
+  |
+5 |     panic!()?;
+  |     ^^^^^^^^ the `?` operator cannot be applied to type `!`
+  |
+  = help: the trait `iex::trying::Try` is not implemented for `!`
+note: required by a bound in `iex::trying::TryPhantom::<E>::do_try`
+ --> src/trying.rs
+  |
+  |     pub unsafe fn do_try<R: Try>(self, outcome: R) -> <R::This as Outcome>::Output
+  |                             ^^^ required by this bound in `TryPhantom::<E>::do_try`
