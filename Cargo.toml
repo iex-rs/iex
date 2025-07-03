@@ -2,7 +2,7 @@
 name = "iex"
 version = "0.2.0"
 authors = ["Alisa Sireneva <me@purplesyringa.moe>"]
-edition = "2021"
+edition = "2024"
 description = "Idiomatic exceptions"
 documentation = "https://docs.rs/iex"
 repository = "https://github.com/iex-rs/iex"

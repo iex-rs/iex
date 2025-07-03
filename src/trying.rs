@@ -1,4 +1,7 @@
-use crate::{outcome::RethrowHandle, IexResult, Outcome};
+use crate::{
+    IexResult,
+    traits::{Outcome, RethrowHandle},
+};
 use core::marker::PhantomData;
 
 #[diagnostic::on_unimplemented(

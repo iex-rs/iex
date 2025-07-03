@@ -183,8 +183,8 @@ fn adjust_return_type(result: ReturnType) -> ReturnType {
             // to force the edition 2024 RPIT lifetime capturing mechanics.
             parse_quote! {
                 -> ::iex::IexResult<
-                    impl FnOnce() -> <#result_type as ::iex::Outcome>::Output,
-                    <#result_type as ::iex::Outcome>::Error,
+                    impl FnOnce() -> <#result_type as ::iex::traits::Outcome>::Output,
+                    <#result_type as ::iex::traits::Outcome>::Error,
                 >
             }
         }
@@ -194,7 +194,9 @@ fn adjust_return_type(result: ReturnType) -> ReturnType {
 fn closure_to_iex_result(input_span: Span, closure: ExprClosure, result: ReturnType) -> Expr {
     let ok_type = match result {
         ReturnType::Default => quote!(_),
-        ReturnType::Type(_, result_type) => quote!(<#result_type as ::iex::Outcome>::Output),
+        ReturnType::Type(_, result_type) => {
+            quote!(<#result_type as ::iex::traits::Outcome>::Output)
+        }
     };
 
     let return_phantom: Ident = parse_quote_spanned!(Span::mixed_site()=> return_phantom);

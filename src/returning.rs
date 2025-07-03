@@ -1,4 +1,8 @@
-use crate::{trying::TryPhantom, IexResult, Outcome};
+use crate::{
+    IexResult,
+    traits::{Outcome, Propagate},
+    trying::TryPhantom,
+};
 use core::marker::PhantomData;
 
 // When returning a mismatching type from a function, we want to show a readable error like
@@ -8,29 +12,46 @@ use core::marker::PhantomData;
 // even an `Outcome`, we *still* want to show a readable error like
 //     expected `Result<{T1}, {E1}>`, found `R`
 // So there's two successive checks: first, `AnyReturn` checks that the value is an `Outcome`, and
-// then `Return` validates the `Output` and `Error` types.
+// then `Return` validates the `Output` and `Error` types for compatibility wrt. `Propagate`.
 
 // `Expected` is only used for diagnostics.
 #[diagnostic::on_unimplemented(
     message = "mismatched types",
     label = "expected `{Expected}`, found `{Self}`"
 )]
-pub trait AnyReturn<Expected>: Outcome {}
+pub trait AnyReturn<Expected>: Sized {
+    // A type-level proof that `Self: Outcome`.
+    type This: From<Self> + Outcome;
+    // `Result<Self::Output, Self::Error>`.
+    type AsResult;
+}
 
 #[diagnostic::do_not_recommend]
-impl<Expected, T, E> AnyReturn<Expected> for Result<T, E> {}
+impl<Expected, T, E> AnyReturn<Expected> for Result<T, E> {
+    type This = Self;
+    type AsResult = Result<T, E>;
+}
 
 #[diagnostic::do_not_recommend]
-impl<Expected, Func: FnOnce() -> T, T, E> AnyReturn<Expected> for IexResult<Func, E> {}
+impl<Expected, Func: FnOnce() -> T, T, E> AnyReturn<Expected> for IexResult<Func, E> {
+    type This = Self;
+    type AsResult = Result<T, E>;
+}
+
+#[diagnostic::do_not_recommend]
+impl<Expected> AnyReturn<Expected> for ! {
+    type This = Self;
+    type AsResult = Result<!, !>;
+}
 
 #[diagnostic::on_unimplemented(
     message = "mismatched types",
     label = "expected `Result<{T}, {E}>`, found `{AsResult}`"
 )]
-pub trait Return<T, E, AsResult>: Outcome<Output = T, Error = E> {}
+pub trait Return<T, E, AsResult>: Propagate<T, E> {}
 
 #[diagnostic::do_not_recommend]
-impl<T, E, R: Outcome<Output = T, Error = E>> Return<T, E, Result<T, E>> for R {}
+impl<T, E, R: Outcome + Propagate<T, E>> Return<T, E, Result<R::Output, R::Error>> for R {}
 
 pub struct ReturnPhantom<T, E>(PhantomData<(T, E)>);
 
@@ -43,11 +64,11 @@ impl<T, E> ReturnPhantom<T, E> {
         TryPhantom::new()
     }
 
-    pub unsafe fn do_return<R: AnyReturn<Result<T, E>>>(self, outcome: R) -> T
-    where
-        R: Return<T, E, Result<<R as Outcome>::Output, <R as Outcome>::Error>>,
-    {
-        unsafe { outcome.unwrap_or_throw(self.to_try_phantom()) }
+    pub unsafe fn do_return<R: AnyReturn<Result<T, E>, This: Return<T, E, R::AsResult>>>(
+        self,
+        outcome: R,
+    ) -> T {
+        unsafe { R::This::from(outcome).unwrap_or_throw(self.to_try_phantom()) }
     }
 }
 

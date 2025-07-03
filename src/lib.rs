@@ -170,13 +170,14 @@
 //! increased speed of the happy path. For JSON parsing in particular, the break-even point is 1
 //! error per 30-100k bytes parsed, depending on the data.
 
+#![feature(never_type)]
 #![cfg_attr(doc, feature(doc_auto_cfg))]
 
 pub use iex_derive::*;
 
-mod outcome;
-#[doc(hidden)]
-pub use outcome::{Outcome, RethrowHandle};
+mod never;
+
+pub mod traits;
 
 mod iex_result;
 #[doc(hidden)]

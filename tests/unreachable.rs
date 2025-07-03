@@ -1,13 +1,23 @@
 use iex::iex;
 
 #[iex]
-fn panicking() -> Result<i32, i32> {
+fn panicking_expr() -> Result<i32, i32> {
+    panic!()
+}
+
+#[iex]
+fn panicking_stmt() -> Result<i32, i32> {
     panic!();
-    Ok(1)
 }
 
 #[test]
 #[should_panic]
-fn test_panicking() {
-    let _ = panicking().into_result();
+fn test_panicking_expr() {
+    let _ = panicking_expr().into_result();
+}
+
+#[test]
+#[should_panic]
+fn test_panicking_stmt() {
+    let _ = panicking_stmt().into_result();
 }

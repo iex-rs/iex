@@ -92,6 +92,8 @@ fn generic_unwrap(outcome: Expr, error_type: ErrorType) -> Expr {
             let return_phantom = quote_spanned!(Span::mixed_site()=> return_phantom);
             Expr::Verbatim(quote_spanned! {outcome.span()=> {
                 let __iex_outcome = #outcome;
+                // Handle `!` being returned gracefully
+                #[allow(unreachable_code)]
                 unsafe { #return_phantom.do_return(__iex_outcome) }
             }})
         }
