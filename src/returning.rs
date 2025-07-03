@@ -1,7 +1,8 @@
 use crate::{
-    IexResult,
+    never::Never,
     traits::{Outcome, Propagate},
     trying::TryPhantom,
+    IexResult,
 };
 use core::marker::PhantomData;
 
@@ -39,9 +40,9 @@ impl<Expected, Func: FnOnce() -> T, T, E> AnyReturn<Expected> for IexResult<Func
 }
 
 #[diagnostic::do_not_recommend]
-impl<Expected> AnyReturn<Expected> for ! {
+impl<Expected> AnyReturn<Expected> for Never {
     type This = Self;
-    type AsResult = Result<!, !>;
+    type AsResult = Result<Never, Never>;
 }
 
 #[diagnostic::on_unimplemented(
