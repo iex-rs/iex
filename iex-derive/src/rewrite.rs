@@ -84,17 +84,23 @@ fn stmt_is_expr_like(node: &Stmt) -> bool {
     )
 }
 
-fn generic_unwrap(outcome: Expr, error_type: ErrorType) -> Expr {
+fn generic_unwrap(outcome: Expr, error_type: ErrorType, expect_divergent: bool) -> Expr {
     // Insert `From` conversion only for `e?`, not `return e`.
     // Cannot use hygiene or resolved_at here because it'll mess up error origin formatting.
     match error_type {
         ErrorType::ForReturn => {
             let return_phantom = quote_spanned!(Span::mixed_site()=> return_phantom);
+            let method = if expect_divergent {
+                // This has better behavior than `do_return` if never type fallbacks to `()`.
+                quote_spanned!(outcome.span()=> do_return_divergent)
+            } else {
+                quote_spanned!(outcome.span()=> do_return)
+            };
             Expr::Verbatim(quote_spanned! {outcome.span()=> {
                 let __iex_outcome = #outcome;
                 // Handle `!` being returned gracefully
                 #[allow(unreachable_code)]
-                unsafe { #return_phantom.do_return(__iex_outcome) }
+                unsafe { #return_phantom.#method(__iex_outcome) }
             }})
         }
         ErrorType::ForTry => {
@@ -142,6 +148,7 @@ impl Fold for Rewrite<'_> {
                         mac: stmt.mac,
                     }),
                     self.do_unwrap_value.unwrap(),
+                    false,
                 ),
                 None,
             ),
@@ -178,9 +185,14 @@ impl Fold for Rewrite<'_> {
             })
             .collect();
 
-        // If the block needs to be unwrapped, but doesn't end with an expression, unwrap it
-        // directly. If it returns `()`, we'll correctly emit an error. If it diverges, we'll get
-        // a fallback to `!` and correctly compile the unwrapping to a no-op.
+        // If the block needs to be unwrapped, but doesn't end with an expression, assert that its
+        // type is `Result<T, E>`. If it diverges, `!` will correctly coerce to `Result<T, E>`. If
+        // it doesn't diverge, the user will get a neat error.
+        //
+        // This is not to be confused with the case when diverging expressions like `panic!()` are
+        // returned directly, without being wrapped in a block -- that's a separate feature,
+        // handled by implementing `Outcome` for `!`. But that only really works well on edition
+        // 2024, while this approach works for 2021 as well.
         if propagate_value_from_expr.is_none()
             && let Some(error_type) = self.do_unwrap_value
         {
@@ -194,6 +206,7 @@ impl Fold for Rewrite<'_> {
                             block,
                         }),
                         error_type,
+                        true,
                     ),
                     None,
                 )],
@@ -271,7 +284,7 @@ impl Fold for Rewrite<'_> {
                 // If we're supposed to unwrap the result as well, unwrap it the second time
                 // generally
                 if let Some(error_type) = self.do_unwrap_value {
-                    generic_unwrap(expr, error_type)
+                    generic_unwrap(expr, error_type, false)
                 } else {
                     expr
                 }
@@ -391,7 +404,7 @@ impl Fold for Rewrite<'_> {
             expr => {
                 let expr = fold_expr(&mut self.with_do_unwrap_value(None), expr);
                 if let Some(error_type) = self.do_unwrap_value {
-                    generic_unwrap(expr, error_type)
+                    generic_unwrap(expr, error_type, false)
                 } else {
                     expr
                 }

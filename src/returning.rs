@@ -1,4 +1,4 @@
-use crate::{never::Never, traits::Outcome, trying::TryPhantom, IexResult};
+use crate::{IexResult, never::Never, traits::Outcome, trying::TryPhantom};
 use core::marker::PhantomData;
 
 // When returning a mismatching type from a function, we want to show a readable error like
@@ -81,6 +81,12 @@ impl<T, E> ReturnPhantom<T, E> {
         outcome: R,
     ) -> T {
         unsafe { R::AsResult::map_outcome(outcome).unwrap_or_throw(self.to_try_phantom()) }
+    }
+
+    pub unsafe fn do_return_divergent(self, _outcome: Result<T, E>) -> ! {
+        unsafe {
+            core::hint::unreachable_unchecked();
+        }
     }
 }
 
