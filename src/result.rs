@@ -1,4 +1,4 @@
-use crate::{phantoms::TryPhantom, Like, Outcome, RethrowHandle, Return, Try};
+use crate::{trying::TryPhantom, Outcome, RethrowHandle};
 
 impl<T, E> Outcome for Result<T, E> {
     type Output = T;
@@ -18,19 +18,6 @@ impl<T, E> Outcome for Result<T, E> {
             Err(err) => Err((err, ResultRethrowHandle)),
         }
     }
-}
-
-#[diagnostic::do_not_recommend]
-impl<T, E> Try for Result<T, E> {}
-
-#[diagnostic::do_not_recommend]
-impl<T1, E1, T2, E2> Like<Result<T1, E1>> for Result<T2, E2> {
-    type This = Self;
-}
-
-#[diagnostic::do_not_recommend]
-impl<T, E> Return<T, E, T, E> for Result<T, E> {
-    type This = Self;
 }
 
 pub struct ResultRethrowHandle;

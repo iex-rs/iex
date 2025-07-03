@@ -174,9 +174,9 @@
 
 pub use iex_derive::*;
 
-mod traits;
+mod outcome;
 #[doc(hidden)]
-pub use traits::{Like, Outcome, RethrowHandle, Return, Try};
+pub use outcome::{Outcome, RethrowHandle};
 
 mod iex_result;
 #[doc(hidden)]
@@ -186,6 +186,9 @@ mod result;
 
 pub mod example;
 
-pub mod phantoms;
+mod returning;
+pub use returning::make_return_phantom;
+
+mod trying;
 
 extern crate self as iex;

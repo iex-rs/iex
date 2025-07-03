@@ -197,6 +197,7 @@ fn closure_to_iex_result(input_span: Span, closure: ExprClosure, result: ReturnT
         ReturnType::Type(_, result_type) => quote!(<#result_type as ::iex::Outcome>::Output),
     };
 
+    let return_phantom: Ident = parse_quote_spanned!(Span::mixed_site()=> return_phantom);
     let try_phantom: Ident = parse_quote_spanned!(Span::mixed_site()=> try_phantom);
 
     // This span is required for dead code diagnostic.
@@ -204,8 +205,8 @@ fn closure_to_iex_result(input_span: Span, closure: ExprClosure, result: ReturnT
         // Effectively type variables. Used for type inference in codegen. `Ok` type needs to be
         // specified explicitly to correctly infer return types within the closure from `Ok`, not
         // vice versa.
-        let __iex_return_phantom = ::iex::phantoms::ReturnPhantom::<#ok_type, _>::new();
-        let #try_phantom = __iex_return_phantom.to_try_phantom();
-        ::iex::IexResult::new(#closure, __iex_return_phantom)
+        let #return_phantom = ::iex::make_return_phantom::<#ok_type, _>();
+        let #try_phantom = #return_phantom.to_try_phantom();
+        ::iex::IexResult::new(#closure, #return_phantom)
     }}
 }
