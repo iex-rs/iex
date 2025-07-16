@@ -25,9 +25,6 @@ error: lifetime may not live long enough
 11 | | }
    | |_^ returning this value requires that `'a` must outlive `'static`
    |
-   = note: requirement occurs because of the type `IexResult<impl FnOnce() -> <Result<(), &'static str> as Outcome>::Output, &str>`, which makes the generic argument `&str` invariant
-   = note: the struct `IexResult<Func, E>` is invariant over the parameter `E`
-   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance
 help: to declare that `impl FnOnce() -> <Result<(), &'static str> as Outcome>::Output` captures data from argument `s`, you can add an explicit `'a` lifetime bound
    |
 8  | #[iex] + 'a
@@ -45,9 +42,6 @@ error: lifetime may not live long enough
 17 | | }
    | |_^ returning this value requires that `'a` must outlive `'static`
    |
-   = note: requirement occurs because of the type `IexResult<impl FnOnce() -> <Result<(), &'static str> as Outcome>::Output, &str>`, which makes the generic argument `&str` invariant
-   = note: the struct `IexResult<Func, E>` is invariant over the parameter `E`
-   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance
 help: to declare that `impl FnOnce() -> <Result<(), &'static str> as Outcome>::Output` captures data from argument `s`, you can add an explicit `'a` lifetime bound
    |
 13 | #[iex] + 'a

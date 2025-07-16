@@ -184,6 +184,7 @@ fn adjust_return_type(result: ReturnType) -> ReturnType {
             parse_quote! {
                 -> ::iex::IexResult<
                     impl FnOnce() -> <#result_type as ::iex::traits::Outcome>::Output,
+                    <#result_type as ::iex::traits::Outcome>::Output,
                     <#result_type as ::iex::traits::Outcome>::Error,
                 >
             }

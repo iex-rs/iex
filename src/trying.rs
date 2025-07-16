@@ -1,5 +1,6 @@
 use crate::{
     IexResult,
+    covariant_fnonce::Callable,
     traits::{Outcome, RethrowHandle},
 };
 use core::marker::PhantomData;
@@ -21,7 +22,7 @@ impl<T, E> Try for Result<T, E> {
 }
 
 #[diagnostic::do_not_recommend]
-impl<Func: FnOnce() -> T, T, E> Try for IexResult<Func, E> {
+impl<Func: Callable, T, E> Try for IexResult<Func, T, E> {
     type This = Self;
 }
 

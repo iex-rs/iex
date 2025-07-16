@@ -52,9 +52,9 @@ error[E0277]: `?` couldn't convert the error to `i32`
   --> tests/ui/wrong_try_type.rs:13:5
    |
 13 |     f()?;
-   |     ^^^ the trait `From<&'static str>` is not implemented for `i32`
+   |     ^^^ the trait `From<&str>` is not implemented for `i32`
    |
-   = note: this can't be annotated with `?` because it has type `Result<(), &'static str>`
+   = note: this can't be annotated with `?` because it has type `Result<(), &str>`
    = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
    = help: the following other types implement trait `From<T>`:
              `i32` implements `From<bool>`
@@ -62,7 +62,7 @@ error[E0277]: `?` couldn't convert the error to `i32`
              `i32` implements `From<i8>`
              `i32` implements `From<u16>`
              `i32` implements `From<u8>`
-   = note: required for `i32` to implement `iex::trying::ThrowFromOutcome<(), &'static str>`
+   = note: required for `i32` to implement `iex::trying::ThrowFromOutcome<(), &str>`
 note: required by a bound in `iex::trying::TryPhantom::<E>::do_try`
   --> src/trying.rs
    |

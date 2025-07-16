@@ -1,4 +1,6 @@
-use crate::{IexResult, never::Never, traits::Outcome, trying::TryPhantom};
+use crate::{
+    IexResult, covariant_fnonce::Callable, never::Never, traits::Outcome, trying::TryPhantom,
+};
 use core::marker::PhantomData;
 
 // When returning a mismatching type from a function, we want to show a readable error like
@@ -26,7 +28,7 @@ impl<Expected, T, E> AnyReturn<Expected> for Result<T, E> {
 }
 
 #[diagnostic::do_not_recommend]
-impl<Expected, Func: FnOnce() -> T, T, E> AnyReturn<Expected> for IexResult<Func, E> {
+impl<Expected, Func: Callable, T, E> AnyReturn<Expected> for IexResult<Func, T, E> {
     type AsResult = Result<T, E>;
 }
 
@@ -51,8 +53,8 @@ impl<T, E> Return<T, E, Result<T, E>> for Result<T, E> {
 }
 
 #[diagnostic::do_not_recommend]
-impl<Func: FnOnce() -> T, T, E> Return<T, E, IexResult<Func, E>> for Result<T, E> {
-    fn map_outcome(outcome: IexResult<Func, E>) -> impl Outcome<Output = T, Error = E> {
+impl<Func: Callable, T, E> Return<T, E, IexResult<Func, T, E>> for Result<T, E> {
+    fn map_outcome(outcome: IexResult<Func, T, E>) -> impl Outcome<Output = T, Error = E> {
         outcome
     }
 }

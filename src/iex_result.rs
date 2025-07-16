@@ -1,37 +1,39 @@
 use crate::{
+    covariant_fnonce::{Callable, CovariantFnOnce},
     returning::ReturnPhantom,
     traits::{Outcome, RethrowHandle},
     trying::TryPhantom,
 };
 use core::marker::PhantomData;
 
-// FIXME: This should be covariant over `Func::Output`, but isn't
-pub struct IexResult<Func, E> {
-    closure: Func,
+pub struct IexResult<Func, T, E> {
+    closure: CovariantFnOnce<Func, T>,
     _phantom: PhantomData<E>,
 }
 
-impl<Func: FnOnce() -> T, T, E> IexResult<Func, E> {
+impl<Func: FnOnce() -> T, T, E> IexResult<Func, T, E> {
     pub fn new(closure: Func, _phantom: ReturnPhantom<T, E>) -> Self {
         Self {
-            closure,
+            closure: CovariantFnOnce::new(closure),
             _phantom: PhantomData,
         }
     }
+}
 
+impl<Func: Callable, T, E> IexResult<Func, T, E> {
     /// Cast `#[iex] Result` to [`Result`].
     pub fn into_result(self) -> Result<T, E> {
         lithium::catch(|| unsafe { self.unwrap_or_throw(TryPhantom::new()) })
     }
 }
 
-impl<Func: FnOnce() -> T, T, E> Outcome for IexResult<Func, E> {
+impl<Func: Callable, T, E> Outcome for IexResult<Func, T, E> {
     type Output = T;
     type Error = E;
     type RethrowHandle = IexResultRethrowHandle<E>;
 
     unsafe fn unwrap_or_throw(self, _phantom: TryPhantom<E>) -> T {
-        (self.closure)()
+        self.closure.call()
     }
 
     unsafe fn intercept(self) -> Result<T, (E, IexResultRethrowHandle<E>)> {

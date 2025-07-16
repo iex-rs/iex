@@ -174,6 +174,7 @@
 
 pub use iex_derive::*;
 
+mod covariant_fnonce;
 mod never;
 
 pub mod traits;
