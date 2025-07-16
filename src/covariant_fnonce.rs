@@ -13,7 +13,7 @@
 //
 // So we force covariantness with this abomination instead. `CovariantFnOnce<F, T>` is *logically*
 // just `F` that is also `FnOnce() -> T`, but it's not really quite like that because `F::Output` is
-// only guaranteed to be a supertype of `T`, not be equal to `T` itself. This property becomes
+// only guaranteed to be a subtype of `T`, not be equal to `T` itself. This property becomes
 // a safety requirement of the type that we enforce by only making it constructible from
 // `F: FnOnce() -> T`.
 
@@ -44,7 +44,7 @@ impl<F, T> CovariantFnOnce<F, T> {
     {
         let value = (self.func)();
         // SAFETY: At construction time, `T = U`. After that, since `T` is covariant and `F` is
-        // invariant, the `T` can only become a supertype of `U`. Therefore, casting `U` to `T` is
+        // invariant, the `T` can only become a subtype of `U`. Therefore, casting `U` to `T` is
         // valid.
         unsafe { core::mem::transmute_copy(&ManuallyDrop::new(value)) }
     }
