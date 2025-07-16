@@ -51,3 +51,6 @@ impl<E> RethrowHandle for IexResultRethrowHandle<E> {
         unsafe { self.0.rethrow(ex) }
     }
 }
+
+// Used to reduce the number of repetitions of `R` in codegen.
+pub type IexResultCtor<F, R> = IexResult<F, <R as Outcome>::Output, <R as Outcome>::Error>;

@@ -181,7 +181,7 @@ pub mod traits;
 
 mod iex_result;
 #[doc(hidden)]
-pub use iex_result::IexResult;
+pub use iex_result::{IexResult, IexResultCtor};
 
 mod result;
 

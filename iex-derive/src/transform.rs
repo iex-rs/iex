@@ -182,10 +182,9 @@ fn adjust_return_type(result: ReturnType) -> ReturnType {
             // This needs to use the span of `iex-derive`, not the original crate, because we want
             // to force the edition 2024 RPIT lifetime capturing mechanics.
             parse_quote! {
-                -> ::iex::IexResult<
+                -> ::iex::IexResultCtor<
                     impl FnOnce() -> <#result_type as ::iex::traits::Outcome>::Output,
-                    <#result_type as ::iex::traits::Outcome>::Output,
-                    <#result_type as ::iex::traits::Outcome>::Error,
+                    #result_type,
                 >
             }
         }
