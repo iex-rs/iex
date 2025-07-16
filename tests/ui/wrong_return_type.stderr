@@ -80,9 +80,9 @@ error[E0277]: mismatched types
   --> tests/ui/wrong_return_type.rs:38:5
    |
 38 |     f()
-   |     ^^^ expected `Result<i32, i32>`, found `Result<(), &str>`
+   |     ^^^ expected `Result<i32, i32>`, found `Result<(), &'static str>`
    |
-   = help: the trait `iex::returning::Return<i32, i32, IexResult<impl FnOnce() -> <Result<(), &'static str> as Outcome>::Output, &str>>` is not implemented for `Result<(), &str>`
+   = help: the trait `iex::returning::Return<i32, i32, IexResult<impl FnOnce() -> <Result<(), &'static str> as Outcome>::Output, &'static str>>` is not implemented for `Result<(), &'static str>`
 note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return`
   --> src/returning.rs
    |

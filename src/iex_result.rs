@@ -5,6 +5,7 @@ use crate::{
 };
 use core::marker::PhantomData;
 
+// FIXME: This should be covariant over `Func::Output`, but isn't
 pub struct IexResult<Func, E> {
     closure: Func,
     _phantom: PhantomData<E>,

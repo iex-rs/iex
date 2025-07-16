@@ -35,7 +35,8 @@ pub trait ThrowFromOutcome<T, E>: From<E> {}
 
 impl<T, E, F: From<E>> ThrowFromOutcome<T, E> for F {}
 
-pub struct TryPhantom<E>(PhantomData<E>);
+// See the comment on `ReturnPhantom` for why this is invariant.
+pub struct TryPhantom<E>(PhantomData<*mut E>);
 
 impl<E> TryPhantom<E> {
     pub(crate) fn new() -> Self {

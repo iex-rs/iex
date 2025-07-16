@@ -1,0 +1,54 @@
+error: lifetime may not live long enough
+ --> tests/ui/variance.rs:4:1
+  |
+4 |   fn contravariance_in_ok<'a>(s: &'a str) -> Result<&'static str, ()> {
+  |   ^                       -- lifetime `'a` defined here
+  |  _|
+  | |
+5 | |     Ok(s)
+6 | | }
+  | |_^ returning this value requires that `'a` must outlive `'static`
+  |
+help: to declare that `impl FnOnce() -> <Result<&'static str, ()> as Outcome>::Output` captures data from argument `s`, you can add an explicit `'a` lifetime bound
+  |
+3 | #[iex] + 'a
+  |        ++++
+
+error: lifetime may not live long enough
+  --> tests/ui/variance.rs:9:1
+   |
+9  |   fn contravariance_in_return_err<'a>(s: &'a str) -> Result<(), &'static str> {
+   |   ^                               -- lifetime `'a` defined here
+   |  _|
+   | |
+10 | |     Err(s)
+11 | | }
+   | |_^ returning this value requires that `'a` must outlive `'static`
+   |
+   = note: requirement occurs because of the type `IexResult<impl FnOnce() -> <Result<(), &'static str> as Outcome>::Output, &str>`, which makes the generic argument `&str` invariant
+   = note: the struct `IexResult<Func, E>` is invariant over the parameter `E`
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance
+help: to declare that `impl FnOnce() -> <Result<(), &'static str> as Outcome>::Output` captures data from argument `s`, you can add an explicit `'a` lifetime bound
+   |
+8  | #[iex] + 'a
+   |        ++++
+
+error: lifetime may not live long enough
+  --> tests/ui/variance.rs:14:1
+   |
+14 |   fn contravariance_in_try_err<'a>(s: &'a str) -> Result<(), &'static str> {
+   |   ^                            -- lifetime `'a` defined here
+   |  _|
+   | |
+15 | |     Err(s)?;
+16 | |     Ok(())
+17 | | }
+   | |_^ returning this value requires that `'a` must outlive `'static`
+   |
+   = note: requirement occurs because of the type `IexResult<impl FnOnce() -> <Result<(), &'static str> as Outcome>::Output, &str>`, which makes the generic argument `&str` invariant
+   = note: the struct `IexResult<Func, E>` is invariant over the parameter `E`
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance
+help: to declare that `impl FnOnce() -> <Result<(), &'static str> as Outcome>::Output` captures data from argument `s`, you can add an explicit `'a` lifetime bound
+   |
+13 | #[iex] + 'a
+   |        ++++

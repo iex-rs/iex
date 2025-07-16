@@ -65,7 +65,27 @@ impl<T, E> Return<T, E, Never> for Result<Never, Never> {
     }
 }
 
-pub struct ReturnPhantom<T, E>(PhantomData<(T, E)>);
+// The variance here is... tricky. `ReturnPhantom` is mainly lifetime-coerced in two contexts:
+//
+// - When returning values via `do_return`, the phantom is cast to the type of the returned
+//   expression.
+// - When initializing the result with `IexResult::new`, the phantom is cast to the signature return
+//   type.
+//
+// Pay very close attention to the fact that instead of a sensible pipeline like
+// "returned expression -> phantom -> signature return type", we cast the phantom in *both* the
+// would-be covariant direction (to signature return type) and the would-be contravariant direction
+// (to returned expression type). This forces us to declare `ReturnPhantom` as invariant to prevent
+// unsoundness.
+//
+// Note that this doesn't prevent functions like this from compiling:
+//     #[iex]
+//     fn f<'a>() -> Result<(), &'a str> {
+//         Err("s" as &'static str)
+//     }
+// ...since the outcome remains covariant, and that's enough: its lifetimes are correctly adjusted
+// to the invariant lifetimes in the phantom.
+pub struct ReturnPhantom<T, E>(PhantomData<*mut (T, E)>);
 
 pub fn make_return_phantom<T, E>() -> ReturnPhantom<T, E> {
     ReturnPhantom(PhantomData)
