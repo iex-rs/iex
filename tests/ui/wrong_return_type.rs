@@ -39,4 +39,7 @@ fn wrong_err_type_iex() -> Result<i32, i32> {
     f()
 }
 
+#[iex]
+fn fallthrough() -> Result<i32, i32> {}
+
 fn main() {}
