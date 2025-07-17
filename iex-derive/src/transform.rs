@@ -219,6 +219,13 @@ fn closure_to_iex_result(input_span: Span, closure: ExprClosure, result: ReturnT
         // vice versa.
         let #return_phantom = ::iex::make_return_phantom::<#ok_type, _>();
         let #try_phantom = #return_phantom.to_try_phantom();
+
+        // The `iex` crate needs to know the edition of the user crate for diagnostics.
+        macro_rules! __iex_detect_edition {
+            ($e:expr, $le2021:expr, $ge2024:expr $(,)?) => { $ge2024 };
+            (_, $le2021:expr, $ge2024:expr $(,)?) => { $le2021 };
+        }
+
         ::iex::IexResult::new(#closure, #return_phantom)
     }}
 }

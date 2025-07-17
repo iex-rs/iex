@@ -23,11 +23,14 @@ error[E0277]: mismatched types
    = help: the trait `Return<i32, i32, Result<&str, _>>` is not implemented for `Result<&str, _>`
            but trait `Return<&str, i32, Result<&str, i32>>` is implemented for `Result<&str, i32>`
    = help: for that trait implementation, expected `&str`, found `i32`
-note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return`
+note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return_2024`
   --> src/returning.rs
    |
-   |     pub unsafe fn do_return<R: AnyReturn<Result<T, E>, AsResult: Return<T, E, R>>>(
-   |                                                                  ^^^^^^^^^^^^^^^ required by this bound in `ReturnPhantom::<T, E>::do_return`
+   |     pub unsafe fn do_return_2024<R>(self, outcome: R) -> T
+   |                   -------------- required by a bound in this associated function
+   |     where
+   |         R: AnyReturn<Result<T, E>, AsResult: Return<T, E, R> + IsNotUnit2024<Result<T, E>>>,
+   |                                              ^^^^^^^^^^^^^^^ required by this bound in `ReturnPhantom::<T, E>::do_return_2024`
 
 error[E0277]: mismatched types
   --> tests/ui/wrong_return_type.rs:19:15
@@ -38,11 +41,14 @@ error[E0277]: mismatched types
    = help: the trait `Return<i32, i32, Result<&str, _>>` is not implemented for `Result<&str, _>`
            but trait `Return<&str, i32, Result<&str, i32>>` is implemented for `Result<&str, i32>`
    = help: for that trait implementation, expected `&str`, found `i32`
-note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return`
+note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return_2024`
   --> src/returning.rs
    |
-   |     pub unsafe fn do_return<R: AnyReturn<Result<T, E>, AsResult: Return<T, E, R>>>(
-   |                                                                  ^^^^^^^^^^^^^^^ required by this bound in `ReturnPhantom::<T, E>::do_return`
+   |     pub unsafe fn do_return_2024<R>(self, outcome: R) -> T
+   |                   -------------- required by a bound in this associated function
+   |     where
+   |         R: AnyReturn<Result<T, E>, AsResult: Return<T, E, R> + IsNotUnit2024<Result<T, E>>>,
+   |                                              ^^^^^^^^^^^^^^^ required by this bound in `ReturnPhantom::<T, E>::do_return_2024`
 
 error[E0277]: mismatched types
   --> tests/ui/wrong_return_type.rs:19:35
@@ -53,11 +59,14 @@ error[E0277]: mismatched types
    = help: the trait `Return<i32, i32, Result<bool, _>>` is not implemented for `Result<bool, _>`
            but trait `Return<bool, i32, Result<bool, i32>>` is implemented for `Result<bool, i32>`
    = help: for that trait implementation, expected `bool`, found `i32`
-note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return`
+note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return_2024`
   --> src/returning.rs
    |
-   |     pub unsafe fn do_return<R: AnyReturn<Result<T, E>, AsResult: Return<T, E, R>>>(
-   |                                                                  ^^^^^^^^^^^^^^^ required by this bound in `ReturnPhantom::<T, E>::do_return`
+   |     pub unsafe fn do_return_2024<R>(self, outcome: R) -> T
+   |                   -------------- required by a bound in this associated function
+   |     where
+   |         R: AnyReturn<Result<T, E>, AsResult: Return<T, E, R> + IsNotUnit2024<Result<T, E>>>,
+   |                                              ^^^^^^^^^^^^^^^ required by this bound in `ReturnPhantom::<T, E>::do_return_2024`
 
 error[E0277]: mismatched types
   --> tests/ui/wrong_return_type.rs:24:5
@@ -68,11 +77,14 @@ error[E0277]: mismatched types
    = help: the trait `Return<i32, i32, Result<_, &str>>` is not implemented for `Result<_, &str>`
            but trait `Return<i32, &str, Result<i32, &str>>` is implemented for `Result<i32, &str>`
    = help: for that trait implementation, expected `&str`, found `i32`
-note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return`
+note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return_2024`
   --> src/returning.rs
    |
-   |     pub unsafe fn do_return<R: AnyReturn<Result<T, E>, AsResult: Return<T, E, R>>>(
-   |                                                                  ^^^^^^^^^^^^^^^ required by this bound in `ReturnPhantom::<T, E>::do_return`
+   |     pub unsafe fn do_return_2024<R>(self, outcome: R) -> T
+   |                   -------------- required by a bound in this associated function
+   |     where
+   |         R: AnyReturn<Result<T, E>, AsResult: Return<T, E, R> + IsNotUnit2024<Result<T, E>>>,
+   |                                              ^^^^^^^^^^^^^^^ required by this bound in `ReturnPhantom::<T, E>::do_return_2024`
 
 error[E0277]: mismatched types
   --> tests/ui/wrong_return_type.rs:29:15
@@ -83,11 +95,14 @@ error[E0277]: mismatched types
    = help: the trait `Return<i32, i32, Result<_, &str>>` is not implemented for `Result<_, &str>`
            but trait `Return<i32, &str, Result<i32, &str>>` is implemented for `Result<i32, &str>`
    = help: for that trait implementation, expected `&str`, found `i32`
-note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return`
+note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return_2024`
   --> src/returning.rs
    |
-   |     pub unsafe fn do_return<R: AnyReturn<Result<T, E>, AsResult: Return<T, E, R>>>(
-   |                                                                  ^^^^^^^^^^^^^^^ required by this bound in `ReturnPhantom::<T, E>::do_return`
+   |     pub unsafe fn do_return_2024<R>(self, outcome: R) -> T
+   |                   -------------- required by a bound in this associated function
+   |     where
+   |         R: AnyReturn<Result<T, E>, AsResult: Return<T, E, R> + IsNotUnit2024<Result<T, E>>>,
+   |                                              ^^^^^^^^^^^^^^^ required by this bound in `ReturnPhantom::<T, E>::do_return_2024`
 
 error[E0277]: mismatched types
   --> tests/ui/wrong_return_type.rs:29:36
@@ -98,11 +113,14 @@ error[E0277]: mismatched types
    = help: the trait `Return<i32, i32, Result<_, bool>>` is not implemented for `Result<_, bool>`
            but trait `Return<i32, bool, Result<i32, bool>>` is implemented for `Result<i32, bool>`
    = help: for that trait implementation, expected `bool`, found `i32`
-note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return`
+note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return_2024`
   --> src/returning.rs
    |
-   |     pub unsafe fn do_return<R: AnyReturn<Result<T, E>, AsResult: Return<T, E, R>>>(
-   |                                                                  ^^^^^^^^^^^^^^^ required by this bound in `ReturnPhantom::<T, E>::do_return`
+   |     pub unsafe fn do_return_2024<R>(self, outcome: R) -> T
+   |                   -------------- required by a bound in this associated function
+   |     where
+   |         R: AnyReturn<Result<T, E>, AsResult: Return<T, E, R> + IsNotUnit2024<Result<T, E>>>,
+   |                                              ^^^^^^^^^^^^^^^ required by this bound in `ReturnPhantom::<T, E>::do_return_2024`
 
 error[E0277]: mismatched types
   --> tests/ui/wrong_return_type.rs:39:5
@@ -112,11 +130,14 @@ error[E0277]: mismatched types
    |
    = help: the trait `Return<i32, i32, IexResult<impl Callable<Output = <Result<(), &'static str> as Outcome>::Output>, (), &str>>` is not implemented for `Result<(), &str>`
            but trait `Return<(), &str, IexResult<impl Callable<Output = <Result<(), &'static str> as Outcome>::Output>, (), &str>>` is implemented for it
-note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return`
+note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return_2024`
   --> src/returning.rs
    |
-   |     pub unsafe fn do_return<R: AnyReturn<Result<T, E>, AsResult: Return<T, E, R>>>(
-   |                                                                  ^^^^^^^^^^^^^^^ required by this bound in `ReturnPhantom::<T, E>::do_return`
+   |     pub unsafe fn do_return_2024<R>(self, outcome: R) -> T
+   |                   -------------- required by a bound in this associated function
+   |     where
+   |         R: AnyReturn<Result<T, E>, AsResult: Return<T, E, R> + IsNotUnit2024<Result<T, E>>>,
+   |                                              ^^^^^^^^^^^^^^^ required by this bound in `ReturnPhantom::<T, E>::do_return_2024`
 
 error[E0308]: mismatched types
   --> tests/ui/wrong_return_type.rs:43:38

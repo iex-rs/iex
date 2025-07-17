@@ -90,17 +90,26 @@ fn generic_unwrap(outcome: Expr, error_type: ErrorType, expect_divergent: bool) 
     match error_type {
         ErrorType::ForReturn => {
             let return_phantom = quote_spanned!(Span::mixed_site()=> return_phantom);
-            let method = if expect_divergent {
+            let method_call = if expect_divergent {
                 // This has better behavior than `do_return` if never type fallbacks to `()`.
-                quote_spanned!(outcome.span()=> do_return_divergent)
+                quote_spanned!(outcome.span()=> #return_phantom.do_return_divergent(__iex_outcome))
             } else {
-                quote_spanned!(outcome.span()=> do_return)
+                // We want the diagnostic for returning `()` to depend on the edition of the current
+                // crate.
+                quote_spanned! {
+                    outcome.span()=>
+                    __iex_detect_edition!(
+                        _,
+                        #return_phantom.do_return_2021(__iex_outcome),
+                        #return_phantom.do_return_2024(__iex_outcome),
+                    )
+                }
             };
             Expr::Verbatim(quote_spanned! {outcome.span()=> {
                 let __iex_outcome = #outcome;
                 // Handle `!` being returned gracefully
                 #[allow(unreachable_code)]
-                unsafe { #return_phantom.#method(__iex_outcome) }
+                unsafe { #method_call }
             }})
         }
         ErrorType::ForTry => {

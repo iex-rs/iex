@@ -10,7 +10,8 @@ use core::marker::PhantomData;
 // So there's two successive checks: first, `AnyReturn` checks that the value is an `Outcome`, and
 // then `Return` validates the `Output` and `Error` types. There's also another issue: since `!`
 // cannot automatically coerce to `impl Outcome` like it can to `Result`, we have to explicitly
-// implement helper traits for `!` here.
+// implement helper traits for `!` here. We also implement a couple traits for `()` to produce
+// better errors when a divergent expression is returned before edition 2024.
 
 // `Expected` is only used for diagnostics.
 #[diagnostic::on_unimplemented(
@@ -32,6 +33,35 @@ impl<Expected> AnyReturn<Expected> for Never {
     type AsResult = Never;
 }
 
+#[diagnostic::do_not_recommend]
+impl<Expected> AnyReturn<Expected> for () {
+    type AsResult = ();
+}
+
+macro_rules! declare_is_not_unit {
+    ($name:ident $(, $note:literal)*) => {
+        #[diagnostic::on_unimplemented(
+            message = "mismatched types",
+            label = "expected `{Expected}`, found `()`"
+            $(, note = $note)*
+        )]
+        pub trait $name<Expected> {}
+
+        #[diagnostic::do_not_recommend]
+        impl<Expected, T, E> $name<Expected> for Result<T, E> {}
+
+        #[diagnostic::do_not_recommend]
+        impl<Expected> $name<Expected> for Never {}
+    };
+}
+declare_is_not_unit!(
+    IsNotUnit2021,
+    "was this expression supposed to diverge?",
+    "returning values of type `!` from #[iex] functions is not supported until Edition 2024",
+    "update to Edition 2024 or add a semicolon to make a block without a trailing expression"
+);
+declare_is_not_unit!(IsNotUnit2024);
+
 #[diagnostic::on_unimplemented(
     message = "mismatched types",
     label = "expected `Result<{T}, {E}>`, found `{Self}`"
@@ -52,6 +82,16 @@ impl<T, E> Return<T, E, Never> for Never {
     #[allow(unreachable_code)]
     fn map_outcome(outcome: Never) -> impl Outcome<Output = T, Error = E> {
         outcome as Result<T, E>
+    }
+}
+
+// Silence the `AsResult: Return` failure. This doesn't matter in runtime since the
+// `AsResult: IsNotUnit*` bound will fail for `()` instead.
+#[diagnostic::do_not_recommend]
+impl<T, E> Return<T, E, ()> for () {
+    #[allow(unreachable_code)]
+    fn map_outcome(_outcome: ()) -> impl Outcome<Output = T, Error = E> {
+        unreachable!() as Result<T, E>
     }
 }
 
@@ -86,10 +126,17 @@ impl<T, E> ReturnPhantom<T, E> {
         TryPhantom::new()
     }
 
-    pub unsafe fn do_return<R: AnyReturn<Result<T, E>, AsResult: Return<T, E, R>>>(
-        self,
-        outcome: R,
-    ) -> T {
+    pub unsafe fn do_return_2021<R>(self, outcome: R) -> T
+    where
+        R: AnyReturn<Result<T, E>, AsResult: Return<T, E, R> + IsNotUnit2021<Result<T, E>>>,
+    {
+        unsafe { R::AsResult::map_outcome(outcome).unwrap_or_throw(self.to_try_phantom()) }
+    }
+
+    pub unsafe fn do_return_2024<R>(self, outcome: R) -> T
+    where
+        R: AnyReturn<Result<T, E>, AsResult: Return<T, E, R> + IsNotUnit2024<Result<T, E>>>,
+    {
         unsafe { R::AsResult::map_outcome(outcome).unwrap_or_throw(self.to_try_phantom()) }
     }
 
