@@ -183,7 +183,12 @@ fn adjust_return_type(result: ReturnType) -> ReturnType {
             // to force the edition 2024 RPIT lifetime capturing mechanics.
             parse_quote! {
                 -> ::iex::IexResultCtor<
-                    impl FnOnce() -> <#result_type as ::iex::traits::Outcome>::Output,
+                    // Why not `impl FnOnce() -> ...`? Good question! Lifetime elision considers the
+                    // most nested function signature, so anonymous lifetimes within the output type
+                    // would be linked to the lifetimes in `FnOnce()`, of which there are none.
+                    // Using a non-`->` syntax allow lifetime elision to work correctly without
+                    // changing semantics. See the test `lifetimes::elided_returned_lifetime`.
+                    impl ::iex::Callable<Output = <#result_type as ::iex::traits::Outcome>::Output>,
                     #result_type,
                 >
             }

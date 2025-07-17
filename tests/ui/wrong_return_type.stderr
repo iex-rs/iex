@@ -110,8 +110,8 @@ error[E0277]: mismatched types
 39 |     f()
    |     ^^^ expected `Result<i32, i32>`, found `Result<(), &str>`
    |
-   = help: the trait `Return<i32, i32, IexResult<impl FnOnce() -> <Result<(), &'static str> as Outcome>::Output, (), &str>>` is not implemented for `Result<(), &str>`
-           but trait `Return<(), &str, IexResult<impl FnOnce() -> <Result<(), &'static str> as Outcome>::Output, (), &str>>` is implemented for it
+   = help: the trait `Return<i32, i32, IexResult<impl Callable<Output = <Result<(), &'static str> as Outcome>::Output>, (), &str>>` is not implemented for `Result<(), &str>`
+           but trait `Return<(), &str, IexResult<impl Callable<Output = <Result<(), &'static str> as Outcome>::Output>, (), &str>>` is implemented for it
 note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return`
   --> src/returning.rs
    |

@@ -24,6 +24,22 @@ fn elided_input_lifetime_struct(_a: A<'_>) -> Result<(), ()> {
 }
 
 #[iex]
+fn elided_returned_lifetime(x: &u32) -> Result<&u32, ()> {
+    Ok(x)
+}
+
+struct S {
+    val: u32,
+}
+
+impl S {
+    #[iex]
+    fn elided_returned_lifetime_from_self(&self) -> Result<&u32, ()> {
+        Ok(&self.val)
+    }
+}
+
+#[iex]
 fn max_length<'a>(a: &'a str, b: &'a str) -> Result<&'a str, &'static str> {
     if a.len() > b.len() {
         Ok(a)
@@ -48,6 +64,13 @@ fn lifetimes() {
     assert_eq!(
         elided_input_lifetime_struct(A(PhantomData)).into_result(),
         Ok(())
+    );
+    assert_eq!(elided_returned_lifetime(&1).into_result(), Ok(&1));
+    assert_eq!(
+        S { val: 1 }
+            .elided_returned_lifetime_from_self()
+            .into_result(),
+        Ok(&1)
     );
     assert_eq!(max_length("Hello, ", "world!").into_result(), Ok("Hello, "));
 }

@@ -9,7 +9,7 @@ error: lifetime may not live long enough
 6 | | }
   | |_^ returning this value requires that `'a` must outlive `'static`
   |
-help: to declare that `impl FnOnce() -> <Result<&'static str, ()> as Outcome>::Output` captures data from argument `s`, you can add an explicit `'a` lifetime bound
+help: to declare that `impl Callable<Output = <Result<&'static str, ()> as Outcome>::Output>` captures data from argument `s`, you can add an explicit `'a` lifetime bound
   |
 3 | #[iex] + 'a
   |        ++++
@@ -25,7 +25,7 @@ error: lifetime may not live long enough
 11 | | }
    | |_^ returning this value requires that `'a` must outlive `'static`
    |
-help: to declare that `impl FnOnce() -> <Result<(), &'static str> as Outcome>::Output` captures data from argument `s`, you can add an explicit `'a` lifetime bound
+help: to declare that `impl Callable<Output = <Result<(), &'static str> as Outcome>::Output>` captures data from argument `s`, you can add an explicit `'a` lifetime bound
    |
 8  | #[iex] + 'a
    |        ++++
@@ -42,7 +42,7 @@ error: lifetime may not live long enough
 17 | | }
    | |_^ returning this value requires that `'a` must outlive `'static`
    |
-help: to declare that `impl FnOnce() -> <Result<(), &'static str> as Outcome>::Output` captures data from argument `s`, you can add an explicit `'a` lifetime bound
+help: to declare that `impl Callable<Output = <Result<(), &'static str> as Outcome>::Output>` captures data from argument `s`, you can add an explicit `'a` lifetime bound
    |
 13 | #[iex] + 'a
    |        ++++

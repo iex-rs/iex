@@ -216,6 +216,8 @@
 pub use iex_derive::*;
 
 mod covariant_fnonce;
+pub use covariant_fnonce::Callable;
+
 mod never;
 
 pub mod traits;
