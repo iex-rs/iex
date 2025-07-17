@@ -3,6 +3,8 @@
 //! Speed up your [`Result`]-based control flow in the `Ok` path by seamlessly using exceptions for
 //! error propagation, while retaining the monadic syntax beloved by Rust users.
 //!
+//! `#[iex]` is an experimental project.
+//!
 //!
 //! # Example
 //!
@@ -40,41 +42,80 @@
 //!
 //! # Usage
 //!
-//! Applying [`#[iex]`](macro@iex) to functions that return [`Result`]s makes them return
+//! Applying [`#[iex]`](macro@iex) to functions that return [`Result`]s rewrites them to return
 //! the efficiently propagatable type `#[iex] Result` instead.
 //!
-//! This type is magical. **Immediately** after invoking the `#[iex]` function, you need to do one
+//! This type is magical. **Immediately** after invoking some `#[iex]` function, you need to do one
 //! of the following:
 //!
 //! - Cast its return value to a normal [`Result`] by calling its `into_result` method, e.g.
 //!   `f().into_result()`.
-//! - Propagate the error with `?`, if within another `#[iex]` function, e.g. `f()?`. You can choose
-//!   to insert calls to the following methods between the function call and `?`:
-//!   - [`map_err`](Result::map_err) and [`inspect_err`](Result::inspect_err),
-//!   - [`context`](anyhow::Context::context) and [`with_context`](anyhow::Context::with_context)
+//! - Propagate the error with `?`, e.g. `f()?`. This is only possible from within another `#[iex]`
+//!   function -- in normal functions, you always need to go through `into_result`. You can also
+//!   choose to insert calls to the following methods between the function call and `?`:
+//!   - [`map_err`](Result::map_err) or [`inspect_err`](Result::inspect_err),
+//!   - [`context`](anyhow::Context::context) or [`with_context`](anyhow::Context::with_context)
 //!     from [`anyhow`],
-//!   - [`wrap_err`](eyre::WrapErr::wrap_err) and [`wrap_err_with`](eyre::WrapErr::wrap_err_with)
+//!   - [`wrap_err`](eyre::WrapErr::wrap_err) or [`wrap_err_with`](eyre::WrapErr::wrap_err_with)
 //!     from [`eyre`].
-//! - Return the result, either implicitly or with `return`, if within another `#[iex]` function,
-//!   e.g. `return f()`. `map_err` and alike can also be used in this context.
+//! - Return the result, either implicitly or with `return`, e.g. `return f()`. Again, this only
+//!   works within other `#[iex]` functions. `map_err` and alike can be used in this context.
 //!
 //! Note the word "immediately": `#[iex] Result` should not be stored in a variable or ignored.
 //! Behind the scenes, `#[iex] Result` contains a closure, and it's the act of applying `?` or
 //! calling `into_result` that triggers the actual call to the function. As such, `let _ = f();`
-//! will not invoke the body of `f` at all, and `let x = f(); g(); x` will invoke `g` first and `f`
-//! second.
+//! will not invoke the body of `f` at all, and `let result = iex_func(); normal_func(); result?;`
+//! will invoke `normal_func` first and `iex_func` second.
 //!
 //! The sample snippet above shows the vision: `#[iex]` functions typically call other `#[iex]`
 //! functions, optionally add context to the error, and then propagate it with `?`. Complex error
 //! handling happens rarely in comparison and uses the somewhat slower `into_result` mechanism.
 //! `into_result` is also used when bridging between `#[iex]` and non-`#[iex]` functions -- this
-//! might be useful, for example, if you want to keep your public API simpler, but use `#[iex]`
+//! might be useful, for example, if you want to keep your public API simple, but use `#[iex]`
 //! internally.
 //!
 //! [`#[iex]`](macro@iex) can be applied to methods. When working with traits, it needs to be
 //! applied both to declaration in `trait` and the definition in `impl` blocks. Traits with `#[iex]`
 //! methods are not object-safe, unless the method is restricted to `where Self: Sized` (open
 //! an issue if you want me to spend time developing a workaround).
+//!
+//!
+//! # Limitations
+//!
+//! `#[iex]` needs to replace `return` and `?` with custom logic in your code. This means that you
+//! cannot call any macros producing `return` or `?`, even if the operator was in macro input, since
+//! `#[iex]` cannot rewrite macro output:
+//!
+//! ```compile_fail
+//! use iex::iex;
+//!
+//! macro_rules! identity {
+//!     ($($tt:tt)*) => { $($tt)* };
+//! }
+//!
+//! #[iex]
+//! fn f() -> Result<(), ()> {
+//!     identity! {
+//!         return Ok(());
+//!     };
+//! }
+//! ```
+//!
+//! Much like with any rewrites, the precise behavior of type inference may change when a function
+//! is annotated with `#[iex]`. Perhaps the most common issue is lack of unsize and other coercions
+//! in returned expressions:
+//!
+//! ```compile_fail
+//! use iex::iex;
+//!
+//! #[iex]
+//! fn f(r: &'static mut i32) -> Result<&'static i32, ()> {
+//!     Ok(r)
+//! }
+//! ```
+//!
+//! Last but not least, the quality of compiler diagnostics sometimes decreases. While `#[iex]`
+//! tries to improve their formatting, that's not always possible.
 //!
 //!
 //! # Implementation and performance
@@ -88,7 +129,7 @@
 //! - `f()?` and `return f()` don't catch the exception at all, implicitly letting it through.
 //! - `f().map_err(...)?` and alike catch and rethrow the exception, reusing its EH context.
 //! - `f().into_result()` catches the exception and destroys its EH context. Throwing further
-//!   exceptions, e.g. by `return` in  `return f().into_result();`, will need to allocate a new EH
+//!   exceptions, e.g. by `return` in `return f().into_result();`, will need to allocate a new EH
 //!   context.
 //!
 //! Note that just blindly slapping `#[iex]` onto every single function might not improve your
