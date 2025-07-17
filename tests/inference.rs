@@ -1,7 +1,7 @@
 use iex::iex;
 
 #[iex]
-fn infer_ok() -> Result<i32, i64> {
+pub fn infer_ok() -> Result<i32, i64> {
     if true {
         Ok(Default::default())
     } else {
@@ -10,7 +10,7 @@ fn infer_ok() -> Result<i32, i64> {
 }
 
 #[iex]
-fn infer_err() -> Result<i32, i64> {
+pub fn infer_err() -> Result<i32, i64> {
     if true {
         Err(Default::default())
     } else {
@@ -19,7 +19,7 @@ fn infer_err() -> Result<i32, i64> {
 }
 
 #[iex]
-fn infer_question_mark_ok() -> Result<(), i64> {
+pub fn infer_question_mark_ok() -> Result<(), i64> {
     // In both cases, `T` needs to fallback to `!` / `()`
     Err(1)?;
     // Err(1).map_err(|e| e)?;
@@ -30,14 +30,14 @@ fn infer_question_mark_ok() -> Result<(), i64> {
 // inference manages to infer that the generic parameter of `conjure()` is `S` from this. This test
 // verifies that black magic in `do_try` bounds doesn't accidentally break this.
 #[iex]
-fn infer_single_impl() -> Result<(), S> {
+pub fn infer_single_impl() -> Result<(), S> {
     Err(conjure())?;
     // Err(conjure()).map_err(|e| e)?;
     Ok(())
 }
 
-struct S;
+pub struct S;
 
-fn conjure<T>() -> T {
+pub fn conjure<T>() -> T {
     loop {}
 }
