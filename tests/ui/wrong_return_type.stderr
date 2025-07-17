@@ -30,10 +30,10 @@ note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return`
    |                                                                  ^^^^^^^^^^^^^^^ required by this bound in `ReturnPhantom::<T, E>::do_return`
 
 error[E0277]: mismatched types
-  --> tests/ui/wrong_return_type.rs:20:9
+  --> tests/ui/wrong_return_type.rs:19:15
    |
-20 |         Ok("meow")
-   |         ^^^^^^^^^^ expected `Result<i32, i32>`, found `Result<&str, _>`
+19 |     if cond { Ok("meow") } else { Ok(false) }
+   |               ^^^^^^^^^^ expected `Result<i32, i32>`, found `Result<&str, _>`
    |
    = help: the trait `Return<i32, i32, Result<&str, _>>` is not implemented for `Result<&str, _>`
            but trait `Return<&str, i32, Result<&str, i32>>` is implemented for `Result<&str, i32>`
@@ -45,10 +45,10 @@ note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return`
    |                                                                  ^^^^^^^^^^^^^^^ required by this bound in `ReturnPhantom::<T, E>::do_return`
 
 error[E0277]: mismatched types
-  --> tests/ui/wrong_return_type.rs:22:9
+  --> tests/ui/wrong_return_type.rs:19:35
    |
-22 |         Ok(false)
-   |         ^^^^^^^^^ expected `Result<i32, i32>`, found `Result<bool, _>`
+19 |     if cond { Ok("meow") } else { Ok(false) }
+   |                                   ^^^^^^^^^ expected `Result<i32, i32>`, found `Result<bool, _>`
    |
    = help: the trait `Return<i32, i32, Result<bool, _>>` is not implemented for `Result<bool, _>`
            but trait `Return<bool, i32, Result<bool, i32>>` is implemented for `Result<bool, i32>`
@@ -60,9 +60,9 @@ note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return`
    |                                                                  ^^^^^^^^^^^^^^^ required by this bound in `ReturnPhantom::<T, E>::do_return`
 
 error[E0277]: mismatched types
-  --> tests/ui/wrong_return_type.rs:28:5
+  --> tests/ui/wrong_return_type.rs:24:5
    |
-28 |     Err("meow")
+24 |     Err("meow")
    |     ^^^^^^^^^^^ expected `Result<i32, i32>`, found `Result<_, &str>`
    |
    = help: the trait `Return<i32, i32, Result<_, &str>>` is not implemented for `Result<_, &str>`
@@ -75,9 +75,39 @@ note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return`
    |                                                                  ^^^^^^^^^^^^^^^ required by this bound in `ReturnPhantom::<T, E>::do_return`
 
 error[E0277]: mismatched types
-  --> tests/ui/wrong_return_type.rs:38:5
+  --> tests/ui/wrong_return_type.rs:29:15
    |
-38 |     f()
+29 |     if cond { Err("meow") } else { Err(false) }
+   |               ^^^^^^^^^^^ expected `Result<i32, i32>`, found `Result<_, &str>`
+   |
+   = help: the trait `Return<i32, i32, Result<_, &str>>` is not implemented for `Result<_, &str>`
+           but trait `Return<i32, &str, Result<i32, &str>>` is implemented for `Result<i32, &str>`
+   = help: for that trait implementation, expected `&str`, found `i32`
+note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return`
+  --> src/returning.rs
+   |
+   |     pub unsafe fn do_return<R: AnyReturn<Result<T, E>, AsResult: Return<T, E, R>>>(
+   |                                                                  ^^^^^^^^^^^^^^^ required by this bound in `ReturnPhantom::<T, E>::do_return`
+
+error[E0277]: mismatched types
+  --> tests/ui/wrong_return_type.rs:29:36
+   |
+29 |     if cond { Err("meow") } else { Err(false) }
+   |                                    ^^^^^^^^^^ expected `Result<i32, i32>`, found `Result<_, bool>`
+   |
+   = help: the trait `Return<i32, i32, Result<_, bool>>` is not implemented for `Result<_, bool>`
+           but trait `Return<i32, bool, Result<i32, bool>>` is implemented for `Result<i32, bool>`
+   = help: for that trait implementation, expected `bool`, found `i32`
+note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return`
+  --> src/returning.rs
+   |
+   |     pub unsafe fn do_return<R: AnyReturn<Result<T, E>, AsResult: Return<T, E, R>>>(
+   |                                                                  ^^^^^^^^^^^^^^^ required by this bound in `ReturnPhantom::<T, E>::do_return`
+
+error[E0277]: mismatched types
+  --> tests/ui/wrong_return_type.rs:39:5
+   |
+39 |     f()
    |     ^^^ expected `Result<i32, i32>`, found `Result<(), &str>`
    |
    = help: the trait `Return<i32, i32, IexResult<impl FnOnce() -> <Result<(), &'static str> as Outcome>::Output, (), &str>>` is not implemented for `Result<(), &str>`

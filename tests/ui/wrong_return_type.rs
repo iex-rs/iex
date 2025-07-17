@@ -16,16 +16,17 @@ fn wrong_ok_type() -> Result<i32, i32> {
 
 #[iex]
 fn wrong_incompatible_ok_types(cond: bool) -> Result<i32, i32> {
-    if cond {
-        Ok("meow")
-    } else {
-        Ok(false)
-    }
+    if cond { Ok("meow") } else { Ok(false) }
 }
 
 #[iex]
 fn wrong_err_type() -> Result<i32, i32> {
     Err("meow")
+}
+
+#[iex]
+fn wrong_incompatible_err_types(cond: bool) -> Result<i32, i32> {
+    if cond { Err("meow") } else { Err(false) }
 }
 
 #[iex]
