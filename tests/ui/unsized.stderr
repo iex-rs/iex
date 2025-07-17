@@ -1,0 +1,426 @@
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+  --> tests/ui/unsized.rs:13:30
+   |
+13 | fn return_unsized_typed() -> Result<str, str> {
+   |                              ^^^^^^^^^^^^^^^^ doesn't have a size known at compile-time
+   |
+   = help: the trait `Sized` is not implemented for `str`
+note: required by an implicit `Sized` bound in `Result`
+  --> $RUST/core/src/result.rs
+   |
+   | pub enum Result<T, E> {
+   |                 ^ required by the implicit `Sized` requirement on this type parameter in `Result`
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+  --> tests/ui/unsized.rs:19:31
+   |
+19 | fn forward_unsized_typed() -> Result<str, str> {
+   |                               ^^^^^^^^^^^^^^^^ doesn't have a size known at compile-time
+   |
+   = help: the trait `Sized` is not implemented for `str`
+note: required by an implicit `Sized` bound in `Result`
+  --> $RUST/core/src/result.rs
+   |
+   | pub enum Result<T, E> {
+   |                 ^ required by the implicit `Sized` requirement on this type parameter in `Result`
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+ --> tests/ui/unsized.rs:6:14
+  |
+6 |         1 => *"meow",
+  |              ^^^^^^^ doesn't have a size known at compile-time
+  |
+  = help: the trait `Sized` is not implemented for `str`
+  = note: all local variables must have a statically known size
+help: references are always `Sized`, even if they point to unsized data; consider not dereferencing the expression
+  |
+6 -         1 => *"meow",
+6 +         1 => "meow",
+  |
+
+error[E0277]: mismatched types
+ --> tests/ui/unsized.rs:6:14
+  |
+6 |         1 => *"meow",
+  |              ^^^^^^^ expected `Result<(), ()>`, found `str`
+  |
+  = help: the trait `iex::returning::AnyReturn<Result<(), ()>>` is not implemented for `str`
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+ --> tests/ui/unsized.rs:7:17
+  |
+7 |         2 => Ok(*"meow"),
+  |              -- ^^^^^^^ doesn't have a size known at compile-time
+  |              |
+  |              required by a bound introduced by this call
+  |
+  = help: the trait `Sized` is not implemented for `str`
+note: required by a bound in `Ok`
+ --> $RUST/core/src/result.rs
+  |
+  | pub enum Result<T, E> {
+  |                 ^ required by this bound in `Ok`
+...
+  |     Ok(#[stable(feature = "rust1", since = "1.0.0")] T),
+  |     -- required by a bound in this tuple variant
+help: references are always `Sized`, even if they point to unsized data; consider not dereferencing the expression
+  |
+7   -         2 => Ok(*"meow"),
+7   +         2 => Ok("meow"),
+    |
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+ --> tests/ui/unsized.rs:7:14
+  |
+7 |         2 => Ok(*"meow"),
+  |              ^^^^^^^^^^^ doesn't have a size known at compile-time
+  |
+  = help: the trait `Sized` is not implemented for `str`
+note: required by an implicit `Sized` bound in `Result`
+ --> $RUST/core/src/result.rs
+  |
+  | pub enum Result<T, E> {
+  |                 ^ required by the implicit `Sized` requirement on this type parameter in `Result`
+
+error[E0277]: mismatched types
+ --> tests/ui/unsized.rs:7:14
+  |
+7 |         2 => Ok(*"meow"),
+  |              ^^^^^^^^^^^ expected `Result<(), ()>`, found `Result<str, _>`
+  |
+  = help: the trait `iex::returning::Return<(), (), Result<str, _>>` is not implemented for `Result<str, _>`
+note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return`
+ --> src/returning.rs
+  |
+  |     pub unsafe fn do_return<R: AnyReturn<Result<T, E>, AsResult: Return<T, E, R>>>(
+  |                                                                  ^^^^^^^^^^^^^^^ required by this bound in `ReturnPhantom::<T, E>::do_return`
+
+error[E0277]: mismatched types
+ --> tests/ui/unsized.rs:8:14
+  |
+8 |         _ => Err("*meow"),
+  |              ^^^^^^^^^^^^ expected `Result<(), ()>`, found `Result<_, &str>`
+  |
+  = help: the trait `Return<(), (), Result<_, &str>>` is not implemented for `Result<_, &str>`
+          but trait `Return<(), &str, Result<(), &str>>` is implemented for `Result<(), &str>`
+  = help: for that trait implementation, expected `&str`, found `()`
+note: required by a bound in `iex::returning::ReturnPhantom::<T, E>::do_return`
+ --> src/returning.rs
+  |
+  |     pub unsafe fn do_return<R: AnyReturn<Result<T, E>, AsResult: Return<T, E, R>>>(
+  |                                                                  ^^^^^^^^^^^^^^^ required by this bound in `ReturnPhantom::<T, E>::do_return`
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+  --> tests/ui/unsized.rs:12:1
+   |
+12 | #[iex]
+   | ^^^^^^ doesn't have a size known at compile-time
+   |
+   = help: the trait `Sized` is not implemented for `str`
+   = help: the trait `Outcome` is implemented for `Result<T, E>`
+   = note: required for `Result<str, str>` to implement `Outcome`
+   = note: this error originates in the attribute macro `iex` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+  --> tests/ui/unsized.rs:13:1
+   |
+13 | / fn return_unsized_typed() -> Result<str, str> {
+14 | |     Err(*"meow")?;
+15 | |     if true { Ok(*"meow") } else { Err(*"meow") }
+16 | | }
+   | |_^ doesn't have a size known at compile-time
+   |
+   = help: the trait `Sized` is not implemented for `str`
+note: required by an implicit `Sized` bound in `iex::returning::ReturnPhantom`
+  --> src/returning.rs
+   |
+   | pub struct ReturnPhantom<T, E>(PhantomData<*mut (T, E)>);
+   |                          ^ required by the implicit `Sized` requirement on this type parameter in `ReturnPhantom`
+
+error[E0599]: the method `to_try_phantom` exists for struct `iex::returning::ReturnPhantom<str, _>`, but its trait bounds were not satisfied
+  --> tests/ui/unsized.rs:13:1
+   |
+13 | / fn return_unsized_typed() -> Result<str, str> {
+14 | |     Err(*"meow")?;
+15 | |     if true { Ok(*"meow") } else { Err(*"meow") }
+16 | | }
+   | |_^
+   |
+   = note: the following trait bounds were not satisfied:
+           `str: Sized`
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+  --> tests/ui/unsized.rs:12:1
+   |
+12 |   #[iex]
+   |   ^^^^^^ doesn't have a size known at compile-time
+13 | / fn return_unsized_typed() -> Result<str, str> {
+14 | |     Err(*"meow")?;
+15 | |     if true { Ok(*"meow") } else { Err(*"meow") }
+16 | | }
+   | |_- required by a bound introduced by this call
+   |
+   = help: the trait `Sized` is not implemented for `str`
+note: required by a bound in `IexResult::<Func, T, E>::new`
+  --> src/iex_result.rs
+   |
+   | impl<Func: FnOnce() -> T, T, E> IexResult<Func, T, E> {
+   |                           ^ required by this bound in `IexResult::<Func, T, E>::new`
+   |     pub fn new(closure: Func, _phantom: ReturnPhantom<T, E>) -> Self {
+   |            --- required by a bound in this associated function
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+  --> tests/ui/unsized.rs:13:47
+   |
+13 |   fn return_unsized_typed() -> Result<str, str> {
+   |  _______________________________________________^
+14 | |     Err(*"meow")?;
+15 | |     if true { Ok(*"meow") } else { Err(*"meow") }
+16 | | }
+   | |_^ doesn't have a size known at compile-time
+   |
+   = help: the trait `Sized` is not implemented for `str`
+   = note: the return type of a function must have a statically known size
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+  --> tests/ui/unsized.rs:14:9
+   |
+14 |     Err(*"meow")?;
+   |     --- ^^^^^^^ doesn't have a size known at compile-time
+   |     |
+   |     required by a bound introduced by this call
+   |
+   = help: the trait `Sized` is not implemented for `str`
+note: required by a bound in `Err`
+  --> $RUST/core/src/result.rs
+   |
+   | pub enum Result<T, E> {
+   |                    ^ required by this bound in `Err`
+...
+   |     Err(#[stable(feature = "rust1", since = "1.0.0")] E),
+   |     --- required by a bound in this tuple variant
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+  --> tests/ui/unsized.rs:14:5
+   |
+14 |     Err(*"meow")?;
+   |     ^^^^^^^^^^^^ doesn't have a size known at compile-time
+   |
+   = help: the trait `Sized` is not implemented for `str`
+note: required by an implicit `Sized` bound in `Result`
+  --> $RUST/core/src/result.rs
+   |
+   | pub enum Result<T, E> {
+   |                    ^ required by the implicit `Sized` requirement on this type parameter in `Result`
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+  --> tests/ui/unsized.rs:15:18
+   |
+15 |     if true { Ok(*"meow") } else { Err(*"meow") }
+   |               -- ^^^^^^^ doesn't have a size known at compile-time
+   |               |
+   |               required by a bound introduced by this call
+   |
+   = help: the trait `Sized` is not implemented for `str`
+note: required by a bound in `Ok`
+  --> $RUST/core/src/result.rs
+   |
+   | pub enum Result<T, E> {
+   |                 ^ required by this bound in `Ok`
+...
+   |     Ok(#[stable(feature = "rust1", since = "1.0.0")] T),
+   |     -- required by a bound in this tuple variant
+help: references are always `Sized`, even if they point to unsized data; consider not dereferencing the expression
+   |
+15  -     if true { Ok(*"meow") } else { Err(*"meow") }
+15  +     if true { Ok("meow") } else { Err(*"meow") }
+    |
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+  --> tests/ui/unsized.rs:15:15
+   |
+15 |     if true { Ok(*"meow") } else { Err(*"meow") }
+   |               ^^^^^^^^^^^ doesn't have a size known at compile-time
+   |
+   = help: the trait `Sized` is not implemented for `str`
+note: required by an implicit `Sized` bound in `Result`
+  --> $RUST/core/src/result.rs
+   |
+   | pub enum Result<T, E> {
+   |                 ^ required by the implicit `Sized` requirement on this type parameter in `Result`
+
+error[E0599]: the method `do_return` exists for struct `iex::returning::ReturnPhantom<str, str>`, but its trait bounds were not satisfied
+  --> tests/ui/unsized.rs:15:15
+   |
+15 |     if true { Ok(*"meow") } else { Err(*"meow") }
+   |               ^^^^^^^^^^^ method cannot be called on `iex::returning::ReturnPhantom<str, str>` due to unsatisfied trait bounds
+   |
+   = note: the following trait bounds were not satisfied:
+           `str: Sized`
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+  --> tests/ui/unsized.rs:15:40
+   |
+15 |     if true { Ok(*"meow") } else { Err(*"meow") }
+   |                                    --- ^^^^^^^ doesn't have a size known at compile-time
+   |                                    |
+   |                                    required by a bound introduced by this call
+   |
+   = help: the trait `Sized` is not implemented for `str`
+note: required by a bound in `Err`
+  --> $RUST/core/src/result.rs
+   |
+   | pub enum Result<T, E> {
+   |                    ^ required by this bound in `Err`
+...
+   |     Err(#[stable(feature = "rust1", since = "1.0.0")] E),
+   |     --- required by a bound in this tuple variant
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+  --> tests/ui/unsized.rs:15:36
+   |
+15 |     if true { Ok(*"meow") } else { Err(*"meow") }
+   |                                    ^^^^^^^^^^^^ doesn't have a size known at compile-time
+   |
+   = help: the trait `Sized` is not implemented for `str`
+note: required by an implicit `Sized` bound in `Result`
+  --> $RUST/core/src/result.rs
+   |
+   | pub enum Result<T, E> {
+   |                    ^ required by the implicit `Sized` requirement on this type parameter in `Result`
+
+error[E0599]: the method `do_return` exists for struct `iex::returning::ReturnPhantom<str, str>`, but its trait bounds were not satisfied
+  --> tests/ui/unsized.rs:15:36
+   |
+15 |     if true { Ok(*"meow") } else { Err(*"meow") }
+   |                                    ^^^^^^^^^^^^ method cannot be called on `iex::returning::ReturnPhantom<str, str>` due to unsatisfied trait bounds
+   |
+   = note: the following trait bounds were not satisfied:
+           `str: Sized`
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+  --> tests/ui/unsized.rs:18:1
+   |
+18 | #[iex]
+   | ^^^^^^ doesn't have a size known at compile-time
+   |
+   = help: the trait `Sized` is not implemented for `str`
+   = help: the trait `Outcome` is implemented for `Result<T, E>`
+   = note: required for `Result<str, str>` to implement `Outcome`
+   = note: this error originates in the attribute macro `iex` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+  --> tests/ui/unsized.rs:19:1
+   |
+19 | / fn forward_unsized_typed() -> Result<str, str> {
+20 | |     return_unsized_typed()
+21 | | }
+   | |_^ doesn't have a size known at compile-time
+   |
+   = help: the trait `Sized` is not implemented for `str`
+note: required by an implicit `Sized` bound in `iex::returning::ReturnPhantom`
+  --> src/returning.rs
+   |
+   | pub struct ReturnPhantom<T, E>(PhantomData<*mut (T, E)>);
+   |                          ^ required by the implicit `Sized` requirement on this type parameter in `ReturnPhantom`
+
+error[E0599]: the method `to_try_phantom` exists for struct `iex::returning::ReturnPhantom<str, _>`, but its trait bounds were not satisfied
+  --> tests/ui/unsized.rs:19:1
+   |
+19 | / fn forward_unsized_typed() -> Result<str, str> {
+20 | |     return_unsized_typed()
+21 | | }
+   | |_^
+   |
+   = note: the following trait bounds were not satisfied:
+           `str: Sized`
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+  --> tests/ui/unsized.rs:18:1
+   |
+18 |   #[iex]
+   |   ^^^^^^ doesn't have a size known at compile-time
+19 | / fn forward_unsized_typed() -> Result<str, str> {
+20 | |     return_unsized_typed()
+21 | | }
+   | |_- required by a bound introduced by this call
+   |
+   = help: the trait `Sized` is not implemented for `str`
+note: required by a bound in `IexResult::<Func, T, E>::new`
+  --> src/iex_result.rs
+   |
+   | impl<Func: FnOnce() -> T, T, E> IexResult<Func, T, E> {
+   |                           ^ required by this bound in `IexResult::<Func, T, E>::new`
+   |     pub fn new(closure: Func, _phantom: ReturnPhantom<T, E>) -> Self {
+   |            --- required by a bound in this associated function
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+  --> tests/ui/unsized.rs:19:48
+   |
+19 |   fn forward_unsized_typed() -> Result<str, str> {
+   |  ________________________________________________^
+20 | |     return_unsized_typed()
+21 | | }
+   | |_^ doesn't have a size known at compile-time
+   |
+   = help: the trait `Sized` is not implemented for `str`
+   = note: the return type of a function must have a statically known size
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+  --> tests/ui/unsized.rs:20:5
+   |
+20 |     return_unsized_typed()
+   |     ^^^^^^^^^^^^^^^^^^^^^^ doesn't have a size known at compile-time
+   |
+   = help: the trait `Sized` is not implemented for `str`
+note: required by an implicit `Sized` bound in `IexResult`
+  --> src/iex_result.rs
+   |
+   | pub struct IexResult<Func, T, E> {
+   |                            ^ required by the implicit `Sized` requirement on this type parameter in `IexResult`
+
+error[E0599]: the method `do_return` exists for struct `iex::returning::ReturnPhantom<str, str>`, but its trait bounds were not satisfied
+  --> tests/ui/unsized.rs:20:5
+   |
+20 |     return_unsized_typed()
+   |     ^^^^^^^^^^^^^^^^^^^^^^ method cannot be called on `iex::returning::ReturnPhantom<str, str>` due to unsatisfied trait bounds
+   |
+   = note: the following trait bounds were not satisfied:
+           `str: Sized`
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+  --> tests/ui/unsized.rs:25:9
+   |
+25 |     Err(*"meow")?;
+   |     --- ^^^^^^^ doesn't have a size known at compile-time
+   |     |
+   |     required by a bound introduced by this call
+   |
+   = help: the trait `Sized` is not implemented for `str`
+note: required by a bound in `Err`
+  --> $RUST/core/src/result.rs
+   |
+   | pub enum Result<T, E> {
+   |                    ^ required by this bound in `Err`
+...
+   |     Err(#[stable(feature = "rust1", since = "1.0.0")] E),
+   |     --- required by a bound in this tuple variant
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+  --> tests/ui/unsized.rs:25:5
+   |
+25 |     Err(*"meow")?;
+   |     ^^^^^^^^^^^^ doesn't have a size known at compile-time
+   |
+   = help: the trait `Sized` is not implemented for `str`
+note: required by an implicit `Sized` bound in `Result`
+  --> $RUST/core/src/result.rs
+   |
+   | pub enum Result<T, E> {
+   |                    ^ required by the implicit `Sized` requirement on this type parameter in `Result`
+
+error[E0271]: type mismatch resolving `<Result<_, str> as Outcome>::Error == ()`
+  --> tests/ui/unsized.rs:25:5
+   |
+25 |     Err(*"meow")?;
+   |     ^^^^^^^^^^^^ expected `()`, found `str`
