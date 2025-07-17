@@ -1,0 +1,16 @@
+error: type `S` is more private than the item `f`
+ --> tests/ui/non_local_type.rs:8:1
+  |
+8 | pub fn f() -> Result<S, S> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^ function `f` is reachable at visibility `pub`
+  |
+note: but type `S` is only usable at visibility `pub(crate)`
+ --> tests/ui/non_local_type.rs:5:1
+  |
+5 | struct S;
+  | ^^^^^^^^
+note: the lint level is defined here
+ --> tests/ui/non_local_type.rs:1:9
+  |
+1 | #![deny(private_interfaces)]
+  |         ^^^^^^^^^^^^^^^^^^

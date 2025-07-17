@@ -181,16 +181,21 @@ fn adjust_return_type(result: ReturnType) -> ReturnType {
         ReturnType::Type(_, result_type) => {
             // This needs to use the span of `iex-derive`, not the original crate, because we want
             // to force the edition 2024 RPIT lifetime capturing mechanics.
-            parse_quote! {
-                -> ::iex::IexResultCtor<
-                    // Why not `impl FnOnce() -> ...`? Good question! Lifetime elision considers the
-                    // most nested function signature, so anonymous lifetimes within the output type
-                    // would be linked to the lifetimes in `FnOnce()`, of which there are none.
-                    // Using a non-`->` syntax allow lifetime elision to work correctly without
-                    // changing semantics. See the test `lifetimes::elided_returned_lifetime`.
-                    impl ::iex::Callable<Output = <#result_type as ::iex::traits::Outcome>::Output>,
-                    #result_type,
-                >
+            //
+            // Why not `impl FnOnce() -> ...`? Good question! Lifetime elision considers the
+            // most nested function signature, so anonymous lifetimes within the output type
+            // would be linked to the lifetimes in `FnOnce()`, of which there are none.
+            // Using a non-`->` syntax allow lifetime elision to work correctly without
+            // changing semantics. See the test `lifetimes::elided_returned_lifetime`.
+            let func_type = quote! {
+                impl ::iex::Callable<Output = <#result_type as ::iex::traits::Outcome>::Output>
+            };
+
+            // The outermost part of the signature needs to use the span of the original function
+            // definition for diagnostics.
+            parse_quote_spanned! {
+                result_type.span()=>
+                -> ::iex::IexResultCtor<#func_type, #result_type>
             }
         }
     }
