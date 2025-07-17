@@ -17,3 +17,6 @@ fn contravariance_in_try_err<'a>(s: &'a str) -> Result<(), &'static str> {
 }
 
 fn main() {}
+
+// FIXME: good diagnostics for this are blocked on https://github.com/rust-lang/rust/issues/144040
+// and https://github.com/rust-lang/rust/issues/144043
