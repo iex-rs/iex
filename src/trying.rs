@@ -1,8 +1,4 @@
-use crate::{
-    IexResult,
-    covariant_fnonce::Callable,
-    traits::{Outcome, RethrowHandle},
-};
+use crate::traits::{Outcome, RethrowHandle};
 use core::marker::PhantomData;
 
 #[diagnostic::on_unimplemented(
@@ -11,18 +7,13 @@ use core::marker::PhantomData;
 )]
 pub trait Try: Sized {
     // Type-level proof that `Self: Outcome`. We can't just make `Outcome` a supertrait of `Try`
-    // because we want the `ThrowFromOutcome` bound on `do_try` to be non-well-formed if `Self = !`,
-    // which implements `Outcome` but not `Try`.
+    // because that causes rustc to emit an unsatisfied obligation `Self: !Outcome` rather than
+    // `Self: !Try`, resulting in worse diagnostics.
     type This: From<Self> + Outcome;
 }
 
 #[diagnostic::do_not_recommend]
-impl<T, E> Try for Result<T, E> {
-    type This = Self;
-}
-
-#[diagnostic::do_not_recommend]
-impl<Func: Callable, T, E> Try for IexResult<Func, T, E> {
+impl<R: Outcome> Try for R {
     type This = Self;
 }
 

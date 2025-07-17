@@ -1,40 +1,35 @@
-use crate::{
-    IexResult, covariant_fnonce::Callable, never::Never, traits::Outcome, trying::TryPhantom,
-};
+use crate::{never::Never, traits::Outcome, trying::TryPhantom};
 use core::marker::PhantomData;
 
 // When returning a mismatching type from a function, we want to show a readable error like
 //     expected `Result<{T1}, {E1}>`, found `Result<{T2}, {E2}>`
-// If the actual type is `IexResult`, we want the error to spell `Result` anyway. So that means we
-// have to read `<R as Outcome>::Output` and `<R as Outcome>::Error`. But if the returned type isn't
-// even an `Outcome`, we *still* want to show a readable error like
+// for *any* instances of `Outcome`, not just `REsult` itself. So that means we have to read
+// `<R as Outcome>::Output` and `<R as Outcome>::Error`. But if the returned type isn't even
+// an `Outcome`, we *still* want to show a readable error like
 //     expected `Result<{T1}, {E1}>`, found `R`
 // So there's two successive checks: first, `AnyReturn` checks that the value is an `Outcome`, and
-// then `Return` validates the `Output` and `Error` types for compatibility wrt. `Propagate`.
+// then `Return` validates the `Output` and `Error` types. There's also another issue: since `!`
+// cannot automatically coerce to `impl Outcome` like it can to `Result`, we have to explicitly
+// implement helper traits for `!` here.
 
 // `Expected` is only used for diagnostics.
 #[diagnostic::on_unimplemented(
     message = "mismatched types",
     label = "expected `{Expected}`, found `{Self}`"
 )]
-pub trait AnyReturn<Expected>: Outcome {
+pub trait AnyReturn<Expected> {
     // `Result<Self::Output, Self::Error>`.
     type AsResult;
 }
 
 #[diagnostic::do_not_recommend]
-impl<Expected, T, E> AnyReturn<Expected> for Result<T, E> {
-    type AsResult = Result<T, E>;
-}
-
-#[diagnostic::do_not_recommend]
-impl<Expected, Func: Callable, T, E> AnyReturn<Expected> for IexResult<Func, T, E> {
-    type AsResult = Result<T, E>;
+impl<Expected, R: Outcome> AnyReturn<Expected> for R {
+    type AsResult = Result<R::Output, R::Error>;
 }
 
 #[diagnostic::do_not_recommend]
 impl<Expected> AnyReturn<Expected> for Never {
-    type AsResult = Result<Never, Never>;
+    type AsResult = Never;
 }
 
 #[diagnostic::on_unimplemented(
@@ -46,21 +41,14 @@ pub trait Return<T, E, R>: Sized {
 }
 
 #[diagnostic::do_not_recommend]
-impl<T, E> Return<T, E, Result<T, E>> for Result<T, E> {
-    fn map_outcome(outcome: Result<T, E>) -> impl Outcome<Output = T, Error = E> {
+impl<R: Outcome<Output = T, Error = E>, T, E> Return<T, E, R> for Result<T, E> {
+    fn map_outcome(outcome: R) -> impl Outcome<Output = T, Error = E> {
         outcome
     }
 }
 
 #[diagnostic::do_not_recommend]
-impl<Func: Callable, T, E> Return<T, E, IexResult<Func, T, E>> for Result<T, E> {
-    fn map_outcome(outcome: IexResult<Func, T, E>) -> impl Outcome<Output = T, Error = E> {
-        outcome
-    }
-}
-
-#[diagnostic::do_not_recommend]
-impl<T, E> Return<T, E, Never> for Result<Never, Never> {
+impl<T, E> Return<T, E, Never> for Never {
     #[allow(unreachable_code)]
     fn map_outcome(outcome: Never) -> impl Outcome<Output = T, Error = E> {
         outcome as Result<T, E>
