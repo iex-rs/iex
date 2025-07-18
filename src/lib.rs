@@ -220,6 +220,9 @@ pub use covariant_fnonce::Callable;
 
 mod never;
 
+mod fn_traits;
+pub use fn_traits::*;
+
 pub mod traits;
 
 mod iex_result;
