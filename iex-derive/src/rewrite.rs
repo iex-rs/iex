@@ -114,24 +114,27 @@ fn generic_unwrap(outcome: Expr, error_type: ErrorType, expect_divergent: bool) 
         }
         ErrorType::ForTry => {
             let try_phantom = quote_spanned!(Span::mixed_site()=> try_phantom);
-            Expr::Verbatim(quote_spanned! {outcome.span()=> {
-                let __iex_outcome = #outcome;
-                // This looks strange, and understandably so. This is necessary to support
-                // code like `Err(())?;`. Rust normally desugars `e?` to something like
-                //     match e {
-                //         Ok(x) => x,
-                //         Err(e) => return Err(From::from(e)),
-                //     }
-                // ...so even if the type of `x` is a free variable, it gets unified with the type
-                // of `return ...`, i.e. `!`, and so `T = !` is inferred and the code compiles. But
-                // if we simply call `do_try` in iex, we'll just have an inference error because the
-                // type variable remains free. So we need to unify the value with `!` as well.
-                match () {
-                    () => unsafe { #try_phantom.do_try(__iex_outcome) },
+            Expr::Verbatim(quote_spanned! {outcome.span()=>
+                // Lifetimes of temporaries are extended to the nearest block, so we can't emit
+                // a `let` statement and then a function call. Hence we use a single `match`
+                // expression here.
+                match #outcome {
+                    __iex_outcome => unsafe { #try_phantom.do_try(__iex_outcome) },
+                    // This looks strange, and understandably so. This is necessary to support code
+                    // like `Err(())?;`. Rust normally desugars `e?` to something like
+                    //     match e {
+                    //         Ok(x) => x,
+                    //         Err(e) => return Err(From::from(e)),
+                    //     }
+                    // ...so even if the type of `x` is a free variable, it gets unified with the
+                    // type of `return ...`, i.e. `!`, and so `T = !` is inferred and the code
+                    // compiles. But if we simply call `do_try` in iex, we'll just have an inference
+                    // error because the type variable remains free. So we need to unify the value
+                    // with `!` as well.
                     #[allow(unreachable_patterns)]
                     _ => unsafe { ::core::hint::unreachable_unchecked() },
                 }
-            }})
+            })
         }
     }
 }

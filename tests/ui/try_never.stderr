@@ -1,10 +1,10 @@
-warning: unreachable expression
+warning: unreachable arm
  --> tests/ui/try_never.rs:5:5
   |
 5 |     panic!()?;
   |     ^^^^^^^^
   |     |
-  |     unreachable expression
+  |     unreachable arm
   |     any code following this expression is unreachable
   |
   = note: `#[warn(unreachable_code)]` on by default
