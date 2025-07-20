@@ -47,7 +47,7 @@ impl<Func: Callable, T, E> Outcome for IexResult<Func, T, E> {
 pub struct IexResultRethrowHandle<E>(lithium::InFlightException<E>);
 
 impl<E> RethrowHandle for IexResultRethrowHandle<E> {
-    unsafe fn do_rethrow<F>(self, ex: F) -> ! {
+    unsafe fn rethrow<F>(self, ex: F, _phantom: TryPhantom<F>) -> ! {
         unsafe { self.0.rethrow(ex) }
     }
 }
