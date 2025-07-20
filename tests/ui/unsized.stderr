@@ -32,11 +32,6 @@ error[E0277]: the size for values of type `str` cannot be known at compilation t
   |
   = help: the trait `Sized` is not implemented for `str`
   = note: all local variables must have a statically known size
-help: references are always `Sized`, even if they point to unsized data; consider not dereferencing the expression
-  |
-6 -         1 => *"meow",
-6 +         1 => "meow",
-  |
 
 error[E0277]: mismatched types
  --> tests/ui/unsized.rs:6:14
@@ -370,6 +365,15 @@ error[E0277]: the size for values of type `str` cannot be known at compilation t
    = help: the trait `Sized` is not implemented for `str`
    = note: the return type of a function must have a statically known size
 
+error[E0599]: the method `do_return_2024` exists for struct `iex::returning::ReturnPhantom<str, str>`, but its trait bounds were not satisfied
+  --> tests/ui/unsized.rs:20:5
+   |
+20 |     return_unsized_typed()
+   |     ^^^^^^^^^^^^^^^^^^^^^^ method cannot be called on `iex::returning::ReturnPhantom<str, str>` due to unsatisfied trait bounds
+   |
+   = note: the following trait bounds were not satisfied:
+           `str: Sized`
+
 error[E0277]: the size for values of type `str` cannot be known at compilation time
   --> tests/ui/unsized.rs:20:5
    |
@@ -382,15 +386,6 @@ note: required by an implicit `Sized` bound in `IexResult`
    |
    | pub struct IexResult<Func, T, E> {
    |                            ^ required by the implicit `Sized` requirement on this type parameter in `IexResult`
-
-error[E0599]: the method `do_return_2024` exists for struct `iex::returning::ReturnPhantom<str, str>`, but its trait bounds were not satisfied
-  --> tests/ui/unsized.rs:20:5
-   |
-20 |     return_unsized_typed()
-   |     ^^^^^^^^^^^^^^^^^^^^^^ method cannot be called on `iex::returning::ReturnPhantom<str, str>` due to unsatisfied trait bounds
-   |
-   = note: the following trait bounds were not satisfied:
-           `str: Sized`
 
 error[E0277]: the size for values of type `str` cannot be known at compilation time
   --> tests/ui/unsized.rs:25:9

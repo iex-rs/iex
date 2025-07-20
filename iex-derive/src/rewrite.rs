@@ -105,12 +105,14 @@ fn generic_unwrap(outcome: Expr, error_type: ErrorType, expect_divergent: bool) 
                     )
                 }
             };
-            Expr::Verbatim(quote_spanned! {outcome.span()=> {
-                let __iex_outcome = #outcome;
-                // Handle `!` being returned gracefully
-                #[allow(unreachable_code)]
-                unsafe { #method_call }
-            }})
+            Expr::Verbatim(quote_spanned! {outcome.span()=>
+                // Clippy is angry at `let ... = <divergent expr>;`, but not at a `match`. This
+                // handles `!` being returned gracefully.
+                match #outcome {
+                    #[allow(unreachable_code, unreachable_patterns)]
+                    __iex_outcome => unsafe { #method_call },
+                }
+            })
         }
         ErrorType::ForTry => {
             let try_phantom = quote_spanned!(Span::mixed_site()=> try_phantom);

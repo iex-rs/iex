@@ -146,7 +146,6 @@ error[E0308]: mismatched types
    |                                      ^^
    |                                      |
    |                                      expected `Result<i32, i32>`, found `()`
-   |                                      this empty block is missing a tail expression
    |                                      arguments to this method are incorrect
    |
    = note:   expected enum `Result<i32, i32>`
