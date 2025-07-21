@@ -56,6 +56,17 @@ fn swap<'a, T>(a: &'a mut T, b: &'a mut T) -> Result<(), String> {
     Ok(())
 }
 
+#[iex]
+fn capture_local() -> Result<i32, ()> {
+    let local = 123;
+    read(&local)
+}
+
+#[iex]
+fn read(r: &i32) -> Result<i32, ()> {
+    Ok(*r)
+}
+
 #[test]
 fn lifetimes() {
     assert_eq!(input_lifetimes(&1, &2).into_result(), Ok(()));
@@ -73,6 +84,7 @@ fn lifetimes() {
         Ok(&1)
     );
     assert_eq!(max_length("Hello, ", "world!").into_result(), Ok("Hello, "));
+    assert_eq!(capture_local().into_result(), Ok(123));
 }
 
 #[test]
