@@ -5,7 +5,7 @@ pub fn infer_ok() -> Result<i32, i64> {
     if true {
         Ok(Default::default())
     } else {
-        unimplemented!(); // Ok(Default::default()).map_err(|e| e)
+        Ok(Default::default()).map_err(|e| e)
     }
 }
 
@@ -14,7 +14,7 @@ pub fn infer_err() -> Result<i32, i64> {
     if true {
         Err(Default::default())
     } else {
-        unimplemented!(); // Err(Default::default()).map_err(|e| e)
+        Err(Default::default()).map_err(|e| e)
     }
 }
 
@@ -22,7 +22,7 @@ pub fn infer_err() -> Result<i32, i64> {
 pub fn infer_question_mark_ok() -> Result<(), i64> {
     // In both cases, `T` needs to fallback to `!` / `()`
     Err(1)?;
-    // Err(1).map_err(|e| e)?;
+    Err(1).map_err(|e| e)?;
     Ok(())
 }
 
@@ -32,7 +32,7 @@ pub fn infer_question_mark_ok() -> Result<(), i64> {
 #[iex]
 pub fn infer_single_impl() -> Result<(), S> {
     Err(conjure())?;
-    // Err(conjure()).map_err(|e| e)?;
+    Err(conjure()).map_err(|e| e)?;
     Ok(())
 }
 

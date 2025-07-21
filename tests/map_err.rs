@@ -10,14 +10,20 @@ fn maps_err() -> Result<(), String> {
     produces_err().map_err(|e| format!("{e} world!"))
 }
 
+#[iex]
+fn inspects_err() -> Result<(), String> {
+    produces_err().inspect_err(|_e: &String| {})
+}
+
 #[test]
 fn simple() {
     assert_eq!(maps_err().into_result().unwrap_err(), "Hello, world!");
+    assert_eq!(inspects_err().into_result().unwrap_err(), "Hello,");
 }
 
 #[iex]
-fn produces_err2(s: &str) -> Result<i32, &'static str> {
-    Err(&*s.to_string().leak())
+fn produces_err2(s: &str) -> Result<i32, String> {
+    Err(s.to_string())
 }
 
 #[iex]
@@ -68,4 +74,61 @@ fn owned_method() {
 #[test]
 fn mut_ref() {
     assert_eq!(maps_err_mut_ref(A).into_result(), Err(()));
+}
+
+// Ensures that error type before `map_err` can capture locals if they're not returned in the end
+#[iex]
+fn not_leaking_local_ref() -> Result<(), ()> {
+    let mut local = 1;
+    err(&mut local).map_err(|_| ())?;
+    err(&mut local).map_err(|_| ())
+}
+
+#[iex]
+fn err<T>(x: T) -> Result<(), T> {
+    Err(x)
+}
+
+#[test]
+fn test_not_leaking_local_ref() {
+    assert_eq!(not_leaking_local_ref().into_result(), Err(()));
+}
+
+// Ensures a panicking callback works correctly
+#[iex]
+fn panicking_closure() -> Result<(), ()> {
+    Err(()).map_err(|_| panic!())
+}
+
+#[test]
+#[should_panic]
+fn test_panicking_closure() {
+    let _ = panicking_closure().into_result();
+}
+
+// Ensures a panic-on-drop callback works correctly
+#[iex]
+fn closure_with_panic_on_drop() -> Result<(), ()> {
+    struct Bomb;
+
+    impl Drop for Bomb {
+        fn drop(&mut self) {
+            panic!();
+        }
+    }
+
+    let bomb = Bomb;
+    let closure = move |_: ()| {
+        let _bomb = bomb;
+    };
+
+    Ok(()).map_err(closure)?;
+
+    Ok(())
+}
+
+#[test]
+#[should_panic]
+fn test_closure_with_panic_on_drop() {
+    let _ = closure_with_panic_on_drop().into_result();
 }

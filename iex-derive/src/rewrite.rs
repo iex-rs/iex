@@ -181,6 +181,17 @@ fn unwrap_special_method(outcome: Expr, error_type: ErrorType, method: Ident, ar
     //         Ok(value) => value,
     //         Err((error, handle)) => handle.rethrow(x.method_taking_mut_self(error)),
     //     }
+    //
+    // It's also important not to change semantics by only evaluating the closure expression in
+    // `Err` case, so the expansion is closer to:
+    //     let outcome = f(&mut x);
+    //     let intercepted = outcome.intercept();
+    //     let map = |e| x.method_taking_mut_self(e);
+    //     match intercepted {
+    //         Ok(value) => value,
+    //         Err((error, handle)) => handle.rethrow(map(error)),
+    //     }
+    //
     // This leaves out just one detail. `e.map_err(..)?` needs to activate never type fallback, and
     // that happens implicitly here because `rethrow` returns `!`. But `return e.map_err(..)` needs
     // to avoid such type inference. We achieve this by making `rethrow` generic over the return
@@ -188,29 +199,29 @@ fn unwrap_special_method(outcome: Expr, error_type: ErrorType, method: Ident, ar
     // disable never type fallback simulation.
 
     let rethrown_err = match &*method.to_string() {
-        "map_err" => quote_spanned!(method.span()=> (#arg)(__iex_err)),
-        "inspect_err" => quote_spanned! { method.span()=> {
-            (#arg)(&__iex_err);
+        "map_err" => quote_spanned!(method.span()=> __iex_arg(__iex_err)),
+        "inspect_err" => quote_spanned! {method.span()=> {
+            __iex_arg(&__iex_err);
             __iex_err
         }},
         "context" => quote_spanned! {method.span()=>
             ::core::result::Result::Err::<(), _>(__iex_err)
-                .context(#arg)
+                .context(__iex_arg)
                 .unwrap_err()
         },
         "with_context" => quote_spanned! {method.span()=>
             ::core::result::Result::Err::<(), _>(__iex_err)
-                .with_context(#arg)
+                .with_context(__iex_arg)
                 .unwrap_err()
         },
         "wrap_err" => quote_spanned! {method.span()=>
             ::core::result::Result::Err::<(), _>(__iex_err)
-                .wrap_err(#arg)
+                .wrap_err(__iex_arg)
                 .unwrap_err()
         },
         "wrap_err_with" => quote_spanned! {method.span()=>
             ::core::result::Result::Err::<(), _>(__iex_err)
-                .wrap_err_with(#arg)
+                .wrap_err_with(__iex_arg)
                 .unwrap_err()
         },
         _ => unreachable!(),
@@ -224,13 +235,14 @@ fn unwrap_special_method(outcome: Expr, error_type: ErrorType, method: Ident, ar
     // extension.
     Expr::Verbatim(quote_spanned! {outcome.span()=>
         match #outcome {
-            __iex_outcome => match unsafe { ::iex::intercept(__iex_outcome) } {
-                ::core::result::Result::Ok(__iex_value) => __iex_value,
-                ::core::result::Result::Err((__iex_err, __iex_handle)) => {
+            __iex_outcome => match (
+                unsafe { ::iex::intercept(__iex_outcome) },
+                #arg // needs to be evaluated after outcome is intercepted
+            ) {
+                (::core::result::Result::Ok(__iex_value), _) => __iex_value,
+                (::core::result::Result::Err((__iex_err, __iex_handle)), mut __iex_arg) => { // XXX: we need to fix type inference to remove mut here :/
                     let __iex_err = #rethrown_err;
-                    unsafe {
-                        #phantom.rethrow(__iex_err, __iex_handle)
-                    }
+                    unsafe { #phantom.rethrow(__iex_err, __iex_handle) }
                 }
             }
         }
