@@ -16,3 +16,22 @@ error[E0277]: the `?` operator can only be applied to `Result`
   |     ^^^^^^^^ the `?` operator cannot be applied to type `!`
   |
   = help: the trait `iex::trying::Try` is not implemented for `!`
+
+warning: unreachable arm
+  --> tests/ui/try_never.rs:10:5
+   |
+10 | /     {
+11 | |         panic!();
+   | |         -------- any code following this expression is unreachable
+12 | |     }?;
+   | |_____^ unreachable arm
+
+error[E0277]: the `?` operator can only be applied to `Result`
+  --> tests/ui/try_never.rs:10:5
+   |
+10 | /     {
+11 | |         panic!();
+12 | |     }?;
+   | |_____^ the `?` operator cannot be applied to type `!`
+   |
+   = help: the trait `iex::trying::Try` is not implemented for `!`
