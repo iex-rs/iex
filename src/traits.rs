@@ -21,5 +21,5 @@ pub trait RethrowHandle: Sized {
     /// # Safety
     ///
     /// This function throws a Lithium exception of type `F`.
-    unsafe fn rethrow<F>(self, ex: F, _phantom: TryPhantom<F>) -> !;
+    unsafe fn rethrow<E>(self, ex: E) -> !;
 }

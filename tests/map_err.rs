@@ -1,4 +1,4 @@
-/*use iex::iex;
+use iex::iex;
 
 #[iex]
 fn produces_err() -> Result<(), String> {
@@ -68,4 +68,4 @@ fn owned_method() {
 #[test]
 fn mut_ref() {
     assert_eq!(maps_err_mut_ref(A).into_result(), Err(()));
-}*/
+}

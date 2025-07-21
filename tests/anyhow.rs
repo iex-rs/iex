@@ -1,4 +1,4 @@
-/*use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use iex::iex;
 use std::error::Error;
 
@@ -38,4 +38,3 @@ fn iex_matches_result() {
     //     format!("{:?}", expected),
     // );
 }
-*/

@@ -1,4 +1,8 @@
-use crate::{never::Never, traits::Outcome, trying::TryPhantom};
+use crate::{
+    never::Never,
+    traits::{Outcome, RethrowHandle},
+    trying::TryPhantom,
+};
 use core::marker::PhantomData;
 
 // When returning a mismatching type from a function, we want to show a readable error like
@@ -144,6 +148,12 @@ impl<T, E> ReturnPhantom<T, E> {
         unsafe {
             core::hint::unreachable_unchecked();
         }
+    }
+
+    // This returns a generic type instead of `!` to avoid accidentally simulating never type
+    // fallback. See comments in rewrite.rs for more information.
+    pub unsafe fn rethrow<U>(self, err: E, handle: impl RethrowHandle) -> U {
+        unsafe { handle.rethrow(err) }
     }
 }
 

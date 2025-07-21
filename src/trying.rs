@@ -50,9 +50,16 @@ impl<E> TryPhantom<E> {
         } else {
             match unsafe { outcome.intercept() } {
                 Ok(value) => value,
-                Err((err, handle)) => unsafe { handle.rethrow(E::from(err), self) },
+                Err((err, handle)) => unsafe { handle.rethrow(E::from(err)) },
             }
         }
+    }
+
+    pub unsafe fn rethrow<F>(self, err: F, handle: impl RethrowHandle) -> !
+    where
+        E: From<F>,
+    {
+        unsafe { handle.rethrow(E::from(err)) }
     }
 }
 

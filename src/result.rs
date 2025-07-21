@@ -26,7 +26,7 @@ impl<T, E> Outcome for Result<T, E> {
 pub struct ResultRethrowHandle;
 
 impl RethrowHandle for ResultRethrowHandle {
-    unsafe fn rethrow<F>(self, ex: F, _phantom: TryPhantom<F>) -> ! {
+    unsafe fn rethrow<F>(self, ex: F) -> ! {
         unsafe { lithium::throw(ex) }
     }
 }

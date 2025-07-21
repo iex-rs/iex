@@ -3,7 +3,7 @@ use quote::quote_spanned;
 use std::collections::HashMap;
 use syn::spanned::Spanned;
 use syn::{
-    Block, Expr, ExprBlock, ExprMacro, ExprMethodCall, Label, Lifetime, Stmt, StmtMacro,
+    Block, Expr, ExprBlock, ExprMacro, ExprMethodCall, Ident, Label, Lifetime, Stmt, StmtMacro,
     fold::{Fold, fold_expr, fold_stmt},
 };
 
@@ -85,60 +85,156 @@ fn stmt_is_expr_like(node: &Stmt) -> bool {
 }
 
 fn generic_unwrap(outcome: Expr, error_type: ErrorType, expect_divergent: bool) -> Expr {
-    // Insert `From` conversion only for `e?`, not `return e`.
-    // Cannot use hygiene or resolved_at here because it'll mess up error origin formatting.
+    // These two are quite different, even though they both are, on the lowest level, just calls to
+    // `unwrap_or_throw`. The differences include:
+    // - `e?` uses `From` conversion, but `return e` doesn't.
+    // - `e?` should error when `e` is `!`, but `return e` should compile.
+    // - For `e?`, the expected error type is the error type of the most nested `try` block, while
+    //   for `return e`, it's the error type of the most nested function; these can be different. We
+    //   don't support `try` blocks yet, but it still makes sense to support these differences.
+    // - `e?` and `return e` should emit different diagnostics on type errors.
+    // It turns out that there's so little common between the two that it doesn't make sense to
+    // share code.
+    //
+    // Perhaps the strangest thing the two have in common is the use of a mangled `__iex_outcome`
+    // name instead of hygiene. It's weird, but for some reason diagnostics are influenced not only
+    // by `located_at`, but also by `resolved_at`, so we have to make do with call-site hygiene.
     match error_type {
-        ErrorType::ForReturn => {
-            let return_phantom = quote_spanned!(Span::mixed_site()=> return_phantom);
-            let method_call = if expect_divergent {
-                // This has better behavior than `do_return` if never type fallbacks to `()`.
-                quote_spanned!(outcome.span()=> #return_phantom.do_return_divergent(__iex_outcome))
-            } else {
-                // We want the diagnostic for returning `()` to depend on the edition of the current
-                // crate.
-                quote_spanned! {
-                    outcome.span()=>
-                    __iex_detect_edition!(
-                        _,
-                        #return_phantom.do_return_2021(__iex_outcome),
-                        #return_phantom.do_return_2024(__iex_outcome),
-                    )
-                }
-            };
-            Expr::Verbatim(quote_spanned! {outcome.span()=>
-                // Clippy is angry at `let ... = <divergent expr>;`, but not at a `match`. This
-                // handles `!` being returned gracefully.
-                match #outcome {
-                    #[allow(unreachable_code, unreachable_patterns)]
-                    __iex_outcome => unsafe { #method_call },
-                }
-            })
-        }
-        ErrorType::ForTry => {
-            let try_phantom = quote_spanned!(Span::mixed_site()=> try_phantom);
-            Expr::Verbatim(quote_spanned! {outcome.span()=>
-                // Lifetimes of temporaries are extended to the nearest block, so we can't emit
-                // a `let` statement and then a function call. Hence we use a single `match`
-                // expression here.
-                match #outcome {
-                    __iex_outcome => unsafe { #try_phantom.do_try(__iex_outcome) },
-                    // This looks strange, and understandably so. This is necessary to support code
-                    // like `Err(())?;`. Rust normally desugars `e?` to something like
-                    //     match e {
-                    //         Ok(x) => x,
-                    //         Err(e) => return Err(From::from(e)),
-                    //     }
-                    // ...so even if the type of `x` is a free variable, it gets unified with the
-                    // type of `return ...`, i.e. `!`, and so `T = !` is inferred and the code
-                    // compiles. But if we simply call `do_try` in iex, we'll just have an inference
-                    // error because the type variable remains free. So we need to unify the value
-                    // with `!` as well.
-                    #[allow(unreachable_patterns)]
-                    _ => unsafe { ::core::hint::unreachable_unchecked() },
-                }
-            })
-        }
+        ErrorType::ForReturn => unwrap_for_return(outcome, expect_divergent),
+        ErrorType::ForTry => unwrap_for_try(outcome),
     }
+}
+
+fn unwrap_for_return(outcome: Expr, expect_divergent: bool) -> Expr {
+    let return_phantom = quote_spanned!(Span::mixed_site()=> return_phantom);
+    let method_call = if expect_divergent {
+        // If a block needs to be returned and doesn't end with an expression, we assert that its
+        // type is `Result<T, E>`. If it diverges, `!` will correctly coerce to `Result<T, E>`. If
+        // it doesn't diverge, the user will get a neat error. This has better behavior than
+        // `do_return` if never type fallbacks to `()`, i.e. on edition 2021 or earlier.
+        //
+        // This is not to be confused with the case when diverging expressions like `panic!()` are
+        // returned directly, without being wrapped in a block. That still uses `do_return` and is
+        // handled by implementing `Outcome` for `!`. But that only really works well on edition
+        // 2024, while this approach works for 2021 as well.
+        quote_spanned!(outcome.span()=> #return_phantom.do_return_divergent(__iex_outcome))
+    } else {
+        // If the type evaluates to `()`, we want to emit different diagnostics depending on the
+        // edition of the current crate. If it's 2021 or earlier, `()` could be due to a never type
+        // fallback and we can emit a helpful diagnostic to help resolve this case. If it's 2024 or
+        // newer, `()` is guaranteed to be a user error and we don't want to show an unhelpful
+        // message.
+        quote_spanned! {
+            outcome.span()=>
+            __iex_detect_edition!(
+                _,
+                #return_phantom.do_return_2021(__iex_outcome),
+                #return_phantom.do_return_2024(__iex_outcome),
+            )
+        }
+    };
+    Expr::Verbatim(quote_spanned! {outcome.span()=>
+        // Clippy is angry at `let ... = <divergent expr>;`, but not at a `match`. This handles `!`
+        // being returned gracefully.
+        match #outcome {
+            #[allow(unreachable_code, unreachable_patterns)]
+            __iex_outcome => unsafe { #method_call },
+        }
+    })
+}
+
+fn unwrap_for_try(outcome: Expr) -> Expr {
+    let try_phantom = quote_spanned!(Span::mixed_site()=> try_phantom);
+    Expr::Verbatim(quote_spanned! {outcome.span()=>
+        // Lifetimes of temporaries are extended to the nearest block, so we can't emit a `let`
+        // statement and then a function call. Hence we use a single `match` expression here.
+        match #outcome {
+            __iex_outcome => unsafe { #try_phantom.do_try(__iex_outcome) },
+            // This looks strange, and understandably so. This is necessary to support code like
+            // `Err(())?;`. Rust normally desugars `e?` to something like
+            //     match e {
+            //         Ok(x) => x,
+            //         Err(e) => return Err(From::from(e)),
+            //     }
+            // ...so even if the type of `x` is a free variable, it gets unified with the type of
+            // `return ...`, i.e. `!`, and so `T = !` is inferred and the code compiles. But if we
+            // simply call `do_try`, we'll just have an inference error because the type variable
+            // remains free. So we need to unify the value with `!` as well.
+            #[allow(unreachable_patterns)]
+            _ => unsafe { ::core::hint::unreachable_unchecked() },
+        }
+    })
+}
+
+fn unwrap_special_method(outcome: Expr, error_type: ErrorType, method: Ident, arg: Expr) -> Expr {
+    // We need to intercept the exception in `outcome`, if present, and then map the error and
+    // rethrow it. It's more tricky than calling a method like `do_try_with_map_err`, though.
+    // Consider a snippet like:
+    //     f(&mut x).map_err(|e| x.method_taking_mut_self(e))?;
+    // If `f(&mut x)` is `IexResult` here, the closure stored inside it captures `x`, and so does
+    // the closure in the `map_err` argument. These captures end up aliasing, and borrowck
+    // rightfully rejects such code. We have to make sure the `IexResult` closure has already been
+    // invoked by the time the `map_err` argument is created, resulting in something like this:
+    //     let outcome = f(&mut x);
+    //     let intercepted = outcome.intercept();
+    //     match intercepted {
+    //         Ok(value) => value,
+    //         Err((error, handle)) => handle.rethrow(x.method_taking_mut_self(error)),
+    //     }
+    // This leaves out just one detail. `e.map_err(..)?` needs to activate never type fallback, and
+    // that happens implicitly here because `rethrow` returns `!`. But `return e.map_err(..)` needs
+    // to avoid such type inference. We achieve this by making `rethrow` generic over the return
+    // type, i.e. `fn rethrow<T>(..) -> T` with `T` otherwise unmentioned, and this is enough to
+    // disable never type fallback simulation.
+
+    let rethrown_err = match &*method.to_string() {
+        "map_err" => quote_spanned!(method.span()=> (#arg)(__iex_err)),
+        "inspect_err" => quote_spanned! { method.span()=> {
+            (#arg)(&__iex_err);
+            __iex_err
+        }},
+        "context" => quote_spanned! {method.span()=>
+            ::core::result::Result::Err::<(), _>(__iex_err)
+                .context(#arg)
+                .unwrap_err()
+        },
+        "with_context" => quote_spanned! {method.span()=>
+            ::core::result::Result::Err::<(), _>(__iex_err)
+                .with_context(#arg)
+                .unwrap_err()
+        },
+        "wrap_err" => quote_spanned! {method.span()=>
+            ::core::result::Result::Err::<(), _>(__iex_err)
+                .wrap_err(#arg)
+                .unwrap_err()
+        },
+        "wrap_err_with" => quote_spanned! {method.span()=>
+            ::core::result::Result::Err::<(), _>(__iex_err)
+                .wrap_err_with(#arg)
+                .unwrap_err()
+        },
+        _ => unreachable!(),
+    };
+
+    // We can be generic over the error type here because the behavior of `!` is equivalent between
+    // `e?` and `return e` in this case, since these methods don't exist on `!`.
+    let phantom = error_type.phantom();
+
+    // Just like in `generic_unwrap`, we use `match` instead of `let` due to temporary lifetime
+    // extension.
+    Expr::Verbatim(quote_spanned! {outcome.span()=>
+        match #outcome {
+            __iex_outcome => match unsafe { ::iex::intercept(__iex_outcome) } {
+                ::core::result::Result::Ok(__iex_value) => __iex_value,
+                ::core::result::Result::Err((__iex_err, __iex_handle)) => {
+                    let __iex_err = #rethrown_err;
+                    unsafe {
+                        #phantom.rethrow(__iex_err, __iex_handle)
+                    }
+                }
+            }
+        }
+    })
 }
 
 pub fn rewrite_block(block: Block, do_unwrap_value: Option<ErrorType>) -> Block {
@@ -192,7 +288,7 @@ impl Fold for Rewrite<'_> {
             .enumerate()
             .rev()
             .find(|(_, stmt)| matches!(stmt, Stmt::Expr(_, _) | Stmt::Macro(_)));
-        let propagate_value_from_expr = if let Some((i, stmt)) = last_non_item
+        let tail_expression = if let Some((i, stmt)) = last_non_item
             && stmt_is_expr_like(stmt)
         {
             Some(i)
@@ -206,22 +302,20 @@ impl Fold for Rewrite<'_> {
             .enumerate()
             .map(|(i, stmt)| {
                 self.with_do_unwrap_value(
-                    self.do_unwrap_value
-                        .filter(|_| propagate_value_from_expr == Some(i)),
+                    self.do_unwrap_value.filter(|_| tail_expression == Some(i)),
                 )
                 .fold_stmt(stmt)
             })
             .collect();
 
-        // If the block needs to be unwrapped, but doesn't end with an expression, assert that its
-        // type is `Result<T, E>`. If it diverges, `!` will correctly coerce to `Result<T, E>`. If
-        // it doesn't diverge, the user will get a neat error.
+        // If the block doesn't have a tail expression, we have to unwrap it directly. It's a bit
+        // ugly because we need to return a block here and `generic_unwrap` returns an expression,
+        // but otherwise it's straightforward.
         //
-        // This is not to be confused with the case when diverging expressions like `panic!()` are
-        // returned directly, without being wrapped in a block -- that's a separate feature,
-        // handled by implementing `Outcome` for `!`. But that only really works well on edition
-        // 2024, while this approach works for 2021 as well.
-        if propagate_value_from_expr.is_none()
+        // The only tricky thing is that we tell `generic_unwrap` we expect the expression to
+        // diverge to get good behavior on edition 2021 and earlier, where never type would
+        // otherwise fallback to `()` and cause a type error in valid code.
+        if tail_expression.is_none()
             && let Some(error_type) = self.do_unwrap_value
         {
             block = Block {
@@ -368,64 +462,8 @@ impl Fold for Rewrite<'_> {
                 && self.do_unwrap_value.is_some() =>
             {
                 let arg = args.pop().unwrap();
-
                 let error_type = self.do_unwrap_value.unwrap();
-                let phantom = error_type.phantom();
-
-                let map = match error_type {
-                    ErrorType::ForReturn => TokenStream::new(),
-                    ErrorType::ForTry => quote_spanned! { outcome.span()=>
-                        let __iex_rethrown_err = ::core::convert::From::from(__iex_rethrown_err);
-                    },
-                };
-
-                let rethrown_err = match &*method.to_string() {
-                    "map_err" => quote_spanned!(method.span()=> (#arg)(__iex_err)),
-                    "inspect_err" => quote_spanned! { method.span()=> {
-                        (#arg)(&__iex_err);
-                        __iex_err
-                    }},
-                    "context" => quote_spanned! {method.span()=>
-                        ::core::result::Result::Err::<(), _>(__iex_err)
-                            .context(#arg)
-                            .unwrap_err()
-                    },
-                    "with_context" => quote_spanned! {method.span()=>
-                        ::core::result::Result::Err::<(), _>(__iex_err)
-                            .with_context(#arg)
-                            .unwrap_err()
-                    },
-                    "wrap_err" => quote_spanned! {method.span()=>
-                        ::core::result::Result::Err::<(), _>(__iex_err)
-                            .wrap_err(#arg)
-                            .unwrap_err()
-                    },
-                    "wrap_err_with" => quote_spanned! {method.span()=>
-                        ::core::result::Result::Err::<(), _>(__iex_err)
-                            .wrap_err_with(#arg)
-                            .unwrap_err()
-                    },
-                    _ => unreachable!(),
-                };
-
-                Expr::Verbatim(quote_spanned! {outcome.span()=> {
-                    // Cannot use hygiene here because it'll mess up error origin formatting
-                    let __iex_outcome = #outcome;
-                    match unsafe { ::iex::Outcome::intercept(__iex_outcome) } {
-                        Ok(__iex_value) => __iex_value,
-                        Err((__iex_err, __iex_handle)) => {
-                            let __iex_rethrown_err = #rethrown_err;
-                            #map
-                            unsafe {
-                                ::iex::RethrowHandle::rethrow(
-                                    __iex_handle,
-                                    __iex_rethrown_err,
-                                    #phantom,
-                                )
-                            }
-                        }
-                    }
-                }})
+                unwrap_special_method(*outcome, error_type, method, arg.into_value())
             }
 
             // General case

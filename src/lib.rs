@@ -238,4 +238,7 @@ pub use returning::make_return_phantom;
 
 mod trying;
 
+mod mapping;
+pub use mapping::intercept;
+
 extern crate self as iex;
