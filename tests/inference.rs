@@ -39,5 +39,6 @@ pub fn infer_single_impl() -> Result<(), S> {
 pub struct S;
 
 pub fn conjure<T>() -> T {
+    #[allow(clippy::empty_loop)]
     loop {}
 }

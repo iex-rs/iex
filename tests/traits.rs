@@ -33,7 +33,7 @@ trait SayHello {
     where
         Self: Sized,
     {
-        Ok(format!("Default implementation says Hello!"))
+        Ok("Default implementation says Hello!".to_string())
     }
 }
 
