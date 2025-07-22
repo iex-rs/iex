@@ -132,3 +132,17 @@ fn closure_with_panic_on_drop() -> Result<(), ()> {
 fn test_closure_with_panic_on_drop() {
     let _ = closure_with_panic_on_drop().into_result();
 }
+
+#[iex]
+fn from_conversion() -> Result<(), String> {
+    Err("Hello, world!").map_err(|e| e)?;
+    Ok(())
+}
+
+#[test]
+fn test_from_conversion() {
+    assert_eq!(
+        from_conversion().into_result(),
+        Err("Hello, world!".to_string()),
+    );
+}
