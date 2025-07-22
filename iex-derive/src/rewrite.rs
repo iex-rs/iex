@@ -208,9 +208,10 @@ fn unwrap_special_method(
     // seemingly be implemented more efficiently as `arg(err)`, because we want to coerce `arg` to
     // the correct type, i.e. `impl FnOnce`. `maps_err_mut_ref` in `tests/map_err.rs` would
     // otherwise have `arg` inferred as `impl FnMut`, not `impl FnOnce`.
+    let arg_var = quote_spanned!(arg.span()=> __iex_arg);
     let rethrown_err = quote_spanned! {method.span()=>
         ::core::result::Result::Err::<(), _>(__iex_err)
-            .#method(__iex_arg)
+            .#method(#arg_var)
             .unwrap_err()
     };
 
@@ -227,7 +228,7 @@ fn unwrap_special_method(
                 #arg // needs to be evaluated after outcome is intercepted
             ) {
                 (::core::result::Result::Ok(__iex_value), _) => __iex_value,
-                (::core::result::Result::Err((__iex_err, __iex_handle)), __iex_arg) => {
+                (::core::result::Result::Err((__iex_err, __iex_handle)), #arg_var) => {
                     let __iex_err = #rethrown_err;
                     // This wraps the error in `Result` instead of passing it directly to improve
                     // diagnostics. See the comments in returning.rs.

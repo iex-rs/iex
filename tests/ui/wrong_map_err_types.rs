@@ -22,4 +22,9 @@ fn wrong_try_type() -> Result<(), i32> {
     Ok(())
 }
 
+#[iex]
+fn non_closure() -> Result<(), ()> {
+    Ok(()).map_err(1)
+}
+
 fn main() {}
