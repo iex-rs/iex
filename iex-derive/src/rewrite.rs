@@ -204,33 +204,14 @@ fn unwrap_special_method(
     // type, i.e. `fn rethrow<T>(..) -> T` with `T` otherwise unmentioned, and this is enough to
     // disable never type fallback simulation.
 
-    let rethrown_err = match &*method.to_string() {
-        "map_err" => quote_spanned!(method.span()=> __iex_arg(__iex_err)),
-        "inspect_err" => quote_spanned! {method.span()=> {
-            __iex_arg(&__iex_err);
-            __iex_err
-        }},
-        "context" => quote_spanned! {method.span()=>
-            ::core::result::Result::Err::<(), _>(__iex_err)
-                .context(__iex_arg)
-                .unwrap_err()
-        },
-        "with_context" => quote_spanned! {method.span()=>
-            ::core::result::Result::Err::<(), _>(__iex_err)
-                .with_context(__iex_arg)
-                .unwrap_err()
-        },
-        "wrap_err" => quote_spanned! {method.span()=>
-            ::core::result::Result::Err::<(), _>(__iex_err)
-                .wrap_err(__iex_arg)
-                .unwrap_err()
-        },
-        "wrap_err_with" => quote_spanned! {method.span()=>
-            ::core::result::Result::Err::<(), _>(__iex_err)
-                .wrap_err_with(__iex_arg)
-                .unwrap_err()
-        },
-        _ => unreachable!(),
+    // Note that we use `Err(err).<method>(arg).unwrap_err()` even for `map_err`, which could
+    // seemingly be implemented more efficiently as `arg(err)`, because we want to coerce `arg` to
+    // the correct type, i.e. `impl FnOnce`. `maps_err_mut_ref` in `tests/map_err.rs` would
+    // otherwise have `arg` inferred as `impl FnMut`, not `impl FnOnce`.
+    let rethrown_err = quote_spanned! {method.span()=>
+        ::core::result::Result::Err::<(), _>(__iex_err)
+            .#method(__iex_arg)
+            .unwrap_err()
     };
 
     // We can be generic over the error type here because the behavior of `!` is equivalent between
@@ -246,7 +227,7 @@ fn unwrap_special_method(
                 #arg // needs to be evaluated after outcome is intercepted
             ) {
                 (::core::result::Result::Ok(__iex_value), _) => __iex_value,
-                (::core::result::Result::Err((__iex_err, __iex_handle)), mut __iex_arg) => { // XXX: we need to fix type inference to remove mut here :/
+                (::core::result::Result::Err((__iex_err, __iex_handle)), __iex_arg) => {
                     let __iex_err = #rethrown_err;
                     // This wraps the error in `Result` instead of passing it directly to improve
                     // diagnostics. See the comments in returning.rs.
