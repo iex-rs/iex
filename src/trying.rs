@@ -27,6 +27,16 @@ pub trait ThrowFromOutcome<T, E>: From<E> {}
 
 impl<T, E, F: From<E>> ThrowFromOutcome<T, E> for F {}
 
+#[diagnostic::on_unimplemented(
+    message = "`?` couldn't convert the error to `{Self}`",
+    note = "this can't be annotated with `?` because it has type `Result<_, {E}>`",
+    note = "the question mark operation (`?`) implicitly performs a conversion on the error value \
+            using the `From` trait"
+)]
+pub trait RethrowFromOutcome<E>: From<E> {}
+
+impl<E, F: From<E>> RethrowFromOutcome<E> for F {}
+
 // See the comment on `ReturnPhantom` for why this is invariant.
 pub struct TryPhantom<E>(PhantomData<*mut E>);
 
@@ -67,7 +77,7 @@ impl<E> TryPhantom<E> {
 
     pub unsafe fn rethrow<F>(self, err: Result<(), F>, handle: impl RethrowHandle) -> !
     where
-        E: From<F>,
+        E: RethrowFromOutcome<F>,
     {
         unsafe { handle.rethrow(E::from(err.unwrap_err_unchecked())) }
     }
