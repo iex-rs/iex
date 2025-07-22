@@ -3,7 +3,7 @@ use quote::quote_spanned;
 use std::collections::HashMap;
 use syn::spanned::Spanned;
 use syn::{
-    Block, Expr, ExprBlock, ExprMacro, ExprMethodCall, Ident, Label, Lifetime, Stmt, StmtMacro,
+    Block, Expr, ExprBlock, ExprMacro, Ident, Label, Lifetime, Stmt, StmtMacro,
     fold::{Fold, fold_expr, fold_stmt},
 };
 
@@ -166,7 +166,13 @@ fn unwrap_for_try(outcome: Expr) -> Expr {
     })
 }
 
-fn unwrap_special_method(outcome: Expr, error_type: ErrorType, method: Ident, arg: Expr) -> Expr {
+fn unwrap_special_method(
+    outcome: Expr,
+    error_type: ErrorType,
+    method: Ident,
+    arg: Expr,
+    span: Span,
+) -> Expr {
     // We need to intercept the exception in `outcome`, if present, and then map the error and
     // rethrow it. It's more tricky than calling a method like `do_try_with_map_err`, though.
     // Consider a snippet like:
@@ -233,16 +239,21 @@ fn unwrap_special_method(outcome: Expr, error_type: ErrorType, method: Ident, ar
 
     // Just like in `generic_unwrap`, we use `match` instead of `let` due to temporary lifetime
     // extension.
-    Expr::Verbatim(quote_spanned! {outcome.span()=>
+    Expr::Verbatim(quote_spanned! {span=>
         match #outcome {
             __iex_outcome => match (
-                unsafe { ::iex::intercept(__iex_outcome) },
+                unsafe { #phantom.intercept(__iex_outcome) },
                 #arg // needs to be evaluated after outcome is intercepted
             ) {
                 (::core::result::Result::Ok(__iex_value), _) => __iex_value,
                 (::core::result::Result::Err((__iex_err, __iex_handle)), mut __iex_arg) => { // XXX: we need to fix type inference to remove mut here :/
                     let __iex_err = #rethrown_err;
-                    unsafe { #phantom.rethrow(__iex_err, __iex_handle) }
+                    // This wraps the error in `Result` instead of passing it directly to improve
+                    // diagnostics. See the comments in returning.rs.
+                    let __iex_err = ::core::result::Result::Err(__iex_err);
+                    unsafe {
+                        #phantom.rethrow(__iex_err, __iex_handle)
+                    }
                 }
             }
         }
@@ -457,25 +468,28 @@ impl Fold for Rewrite<'_> {
             Expr::Continue(expr) => Expr::Continue(expr),
 
             // Unwrapping special methods
-            Expr::MethodCall(ExprMethodCall {
-                receiver: outcome,
-                method,
-                mut args,
-                ..
-            }) if matches!(
-                &*method.to_string(),
-                "map_err"
-                    | "inspect_err"
-                    | "context"
-                    | "with_context"
-                    | "wrap_err"
-                    | "wrap_err_with",
-            ) && args.len() == 1
-                && self.do_unwrap_value.is_some() =>
+            Expr::MethodCall(mut expr)
+                if matches!(
+                    &*expr.method.to_string(),
+                    "map_err"
+                        | "inspect_err"
+                        | "context"
+                        | "with_context"
+                        | "wrap_err"
+                        | "wrap_err_with",
+                ) && expr.args.len() == 1
+                    && self.do_unwrap_value.is_some() =>
             {
-                let arg = args.pop().unwrap();
+                let span = expr.span();
+                let arg = expr.args.pop().unwrap();
                 let error_type = self.do_unwrap_value.unwrap();
-                unwrap_special_method(*outcome, error_type, method, arg.into_value())
+                unwrap_special_method(
+                    *expr.receiver,
+                    error_type,
+                    expr.method,
+                    arg.into_value(),
+                    span,
+                )
             }
 
             // General case

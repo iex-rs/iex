@@ -7,15 +7,17 @@ use core::marker::PhantomData;
 
 // When returning a mismatching type from a function, we want to show a readable error like
 //     expected `Result<{T1}, {E1}>`, found `Result<{T2}, {E2}>`
-// for *any* instances of `Outcome`, not just `REsult` itself. So that means we have to read
+// for *any* instances of `Outcome`, not just `Result` itself. So that means we have to read
 // `<R as Outcome>::Output` and `<R as Outcome>::Error`. But if the returned type isn't even
 // an `Outcome`, we *still* want to show a readable error like
 //     expected `Result<{T1}, {E1}>`, found `R`
 // So there's two successive checks: first, `AnyReturn` checks that the value is an `Outcome`, and
-// then `Return` validates the `Output` and `Error` types. There's also another issue: since `!`
-// cannot automatically coerce to `impl Outcome` like it can to `Result`, we have to explicitly
-// implement helper traits for `!` here. We also implement a couple traits for `()` to produce
-// better errors when a divergent expression is returned before edition 2024.
+// then `Return` validates the `Output` and `Error` types.
+//
+// There's also another issue: since `!` cannot automatically coerce to `impl Outcome` like it can
+// to `Result`, we have to explicitly implement helper traits for `!` here. We also implement
+// a couple traits for `()` to produce better errors when a divergent expression is returned before
+// edition 2024.
 
 // `Expected` is only used for diagnostics.
 #[diagnostic::on_unimplemented(
@@ -99,6 +101,15 @@ impl<T, E> Return<T, E, ()> for () {
     }
 }
 
+#[diagnostic::on_unimplemented(
+    message = "mismatched types",
+    label = "expected `Result<{T}, {E}>`, found `{Self}`"
+)]
+pub trait Intercept<T, E>: Outcome<Output = T> {}
+
+#[diagnostic::do_not_recommend]
+impl<R: Outcome<Output = T>, T, E> Intercept<T, E> for R {}
+
 // The variance here is... tricky. `ReturnPhantom` is mainly lifetime-coerced in two contexts:
 //
 // - When returning values via `do_return`, the phantom is cast to the type of the returned
@@ -150,10 +161,29 @@ impl<T, E> ReturnPhantom<T, E> {
         }
     }
 
-    // This returns a generic type instead of `!` to avoid accidentally simulating never type
+    /// # Safety
+    ///
+    /// The rethrow handles must be nested correctly.
+    pub unsafe fn intercept<R>(self, outcome: R) -> Result<T, (R::Error, R::RethrowHandle)>
+    where
+        R: Intercept<T, E>,
+    {
+        unsafe { outcome.intercept() }
+    }
+
+    // This signature is weird.
+    //
+    // First, this returns a generic type instead of `!` to avoid accidentally simulating never type
     // fallback. See comments in rewrite.rs for more information.
-    pub unsafe fn rethrow<U>(self, err: E, handle: impl RethrowHandle) -> U {
-        unsafe { handle.rethrow(err) }
+    //
+    // Second, this takes `Result<T, E>` and assumes that the active variant is `Err`. This is
+    // because we want the diagnostic to say "expected `Result<T, E>`, got `Result<_, F>`" instead
+    // of "expected `E`, got `F`".
+    /// # Safety
+    ///
+    /// Throws a Lithium exception of type `E`. `result_err` must be `Err`.
+    pub unsafe fn rethrow<U>(self, result_err: Result<T, E>, handle: impl RethrowHandle) -> U {
+        unsafe { handle.rethrow(result_err.unwrap_err_unchecked()) }
     }
 }
 

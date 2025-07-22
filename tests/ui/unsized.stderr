@@ -121,22 +121,6 @@ error[E0277]: the size for values of type `str` cannot be known at compilation t
    = help: the trait `Outcome` is implemented for `Result<T, E>`
    = note: required for `Result<str, str>` to implement `Outcome`
 
-error[E0277]: the size for values of type `str` cannot be known at compilation time
-  --> tests/ui/unsized.rs:13:1
-   |
-13 | / fn return_unsized_typed() -> Result<str, str> {
-14 | |     Err(*"meow")?;
-15 | |     if true { Ok(*"meow") } else { Err(*"meow") }
-16 | | }
-   | |_^ doesn't have a size known at compile-time
-   |
-   = help: the trait `Sized` is not implemented for `str`
-note: required by an implicit `Sized` bound in `iex::returning::ReturnPhantom`
-  --> src/returning.rs
-   |
-   | pub struct ReturnPhantom<T, E>(PhantomData<*mut (T, E)>);
-   |                          ^ required by the implicit `Sized` requirement on this type parameter in `ReturnPhantom`
-
 error[E0599]: the method `to_try_phantom` exists for struct `iex::returning::ReturnPhantom<str, _>`, but its trait bounds were not satisfied
   --> tests/ui/unsized.rs:13:1
    |
@@ -299,6 +283,22 @@ error[E0599]: the method `do_return_2024` exists for struct `iex::returning::Ret
            `str: Sized`
 
 error[E0277]: the size for values of type `str` cannot be known at compilation time
+  --> tests/ui/unsized.rs:13:1
+   |
+13 | / fn return_unsized_typed() -> Result<str, str> {
+14 | |     Err(*"meow")?;
+15 | |     if true { Ok(*"meow") } else { Err(*"meow") }
+16 | | }
+   | |_^ doesn't have a size known at compile-time
+   |
+   = help: the trait `Sized` is not implemented for `str`
+note: required by an implicit `Sized` bound in `IexResult`
+  --> src/iex_result.rs
+   |
+   | pub struct IexResult<Func, T, E> {
+   |                            ^ required by the implicit `Sized` requirement on this type parameter in `IexResult`
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
   --> tests/ui/unsized.rs:19:31
    |
 19 | fn forward_unsized_typed() -> Result<str, str> {
@@ -307,21 +307,6 @@ error[E0277]: the size for values of type `str` cannot be known at compilation t
    = help: the trait `Sized` is not implemented for `str`
    = help: the trait `Outcome` is implemented for `Result<T, E>`
    = note: required for `Result<str, str>` to implement `Outcome`
-
-error[E0277]: the size for values of type `str` cannot be known at compilation time
-  --> tests/ui/unsized.rs:19:1
-   |
-19 | / fn forward_unsized_typed() -> Result<str, str> {
-20 | |     return_unsized_typed()
-21 | | }
-   | |_^ doesn't have a size known at compile-time
-   |
-   = help: the trait `Sized` is not implemented for `str`
-note: required by an implicit `Sized` bound in `iex::returning::ReturnPhantom`
-  --> src/returning.rs
-   |
-   | pub struct ReturnPhantom<T, E>(PhantomData<*mut (T, E)>);
-   |                          ^ required by the implicit `Sized` requirement on this type parameter in `ReturnPhantom`
 
 error[E0599]: the method `to_try_phantom` exists for struct `iex::returning::ReturnPhantom<str, _>`, but its trait bounds were not satisfied
   --> tests/ui/unsized.rs:19:1
@@ -379,6 +364,21 @@ error[E0277]: the size for values of type `str` cannot be known at compilation t
    |
 20 |     return_unsized_typed()
    |     ^^^^^^^^^^^^^^^^^^^^^^ doesn't have a size known at compile-time
+   |
+   = help: the trait `Sized` is not implemented for `str`
+note: required by an implicit `Sized` bound in `IexResult`
+  --> src/iex_result.rs
+   |
+   | pub struct IexResult<Func, T, E> {
+   |                            ^ required by the implicit `Sized` requirement on this type parameter in `IexResult`
+
+error[E0277]: the size for values of type `str` cannot be known at compilation time
+  --> tests/ui/unsized.rs:19:1
+   |
+19 | / fn forward_unsized_typed() -> Result<str, str> {
+20 | |     return_unsized_typed()
+21 | | }
+   | |_^ doesn't have a size known at compile-time
    |
    = help: the trait `Sized` is not implemented for `str`
 note: required by an implicit `Sized` bound in `IexResult`

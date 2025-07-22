@@ -55,11 +55,21 @@ impl<E> TryPhantom<E> {
         }
     }
 
-    pub unsafe fn rethrow<F>(self, err: F, handle: impl RethrowHandle) -> !
+    /// # Safety
+    ///
+    /// The rethrow handles must be nested correctly.
+    pub unsafe fn intercept<R: Outcome>(
+        self,
+        outcome: R,
+    ) -> Result<R::Output, (R::Error, R::RethrowHandle)> {
+        unsafe { outcome.intercept() }
+    }
+
+    pub unsafe fn rethrow<F>(self, err: Result<(), F>, handle: impl RethrowHandle) -> !
     where
         E: From<F>,
     {
-        unsafe { handle.rethrow(E::from(err)) }
+        unsafe { handle.rethrow(E::from(err.unwrap_err_unchecked())) }
     }
 }
 

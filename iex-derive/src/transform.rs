@@ -212,22 +212,30 @@ fn adjust_return_type(result: ReturnType) -> ReturnType {
 }
 
 fn closure_to_iex_result(input_span: Span, closure: ExprClosure, result: ReturnType) -> Expr {
-    let ok_type = match result {
-        ReturnType::Default => quote!(_),
-        ReturnType::Type(_, result_type) => {
-            quote!(<#result_type as ::iex::traits::Outcome>::Output)
-        }
+    let (ok_type, result_type_span) = match result {
+        ReturnType::Default => (quote!(_), closure.span()),
+        ReturnType::Type(_, result_type) => (
+            quote!(<#result_type as ::iex::traits::Outcome>::Output),
+            result_type.span(),
+        ),
     };
 
     let return_phantom: Ident = parse_quote_spanned!(Span::mixed_site()=> return_phantom);
     let try_phantom: Ident = parse_quote_spanned!(Span::mixed_site()=> try_phantom);
 
+    // `Ok` type needs to be specified explicitly to correctly infer return types within the closure
+    // from `Ok`, not vice versa. The return type span is used here so that diagnostics like
+    //     here the type of `return_phantom` is inferred to be `...`
+    // point at the return type in the signature, basically mirroring the native diagnostic
+    //     expected `...` because of return type
+    let return_phantom_value = quote_spanned! { result_type_span=>
+        ::iex::make_return_phantom::<#ok_type, _>()
+    };
+
     // This span is required for dead code diagnostic.
     parse_quote_spanned! { input_span=> {
-        // Effectively type variables. Used for type inference in codegen. `Ok` type needs to be
-        // specified explicitly to correctly infer return types within the closure from `Ok`, not
-        // vice versa.
-        let #return_phantom = ::iex::make_return_phantom::<#ok_type, _>();
+        // Effectively type variables. Used for type inference in codegen.
+        let #return_phantom = #return_phantom_value;
         let #try_phantom = #return_phantom.to_try_phantom();
 
         // The `iex` crate needs to know the edition of the user crate for diagnostics.

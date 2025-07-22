@@ -1,13 +1,10 @@
 error: lifetime may not live long enough
- --> tests/ui/variance.rs:4:1
+ --> tests/ui/variance.rs:4:44
   |
-4 |   fn contravariance_in_ok<'a>(s: &'a str) -> Result<&'static str, ()> {
-  |   ^                       -- lifetime `'a` defined here
-  |  _|
-  | |
-5 | |     Ok(s)
-6 | | }
-  | |_^ assignment requires that `'a` must outlive `'static`
+4 | fn contravariance_in_ok<'a>(s: &'a str) -> Result<&'static str, ()> {
+  |                         --                 ^^^^^^^^^^^^^^^^^^^^^^^^ assignment requires that `'a` must outlive `'static`
+  |                         |
+  |                         lifetime `'a` defined here
   |
   = note: requirement occurs because of the type `iex::returning::ReturnPhantom<&str, ()>`, which makes the generic argument `&str` invariant
   = note: the struct `iex::returning::ReturnPhantom<T, E>` is invariant over the parameter `T`
